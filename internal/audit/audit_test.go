@@ -77,16 +77,19 @@ func TestCopiesAndUnused(t *testing.T) {
 }
 
 func TestPrivateFoldersAreNotProbed(t *testing.T) {
-	for p, want := range map[string]bool{
-		"/h/Downloads/recovery-codes.txt": true,
-		"/h/Desktop":                      true,
-		"/h/Library/Mobile Documents/iCloud~md~obsidian/x": true,
-		"/Volumes/Archive/x":                               true,
-		"/h/dev/app/README.md":                             false,
-		"/h/DesktopStuff/x":                                false,
+	for _, c := range []struct {
+		path string
+		want bool
+	}{
+		{"/h/Downloads/recovery-codes.txt", true},
+		{"/h/Desktop", true},
+		{"/h/Library/Mobile Documents/iCloud~md~obsidian/x", true},
+		{"/Volumes/Archive/x", true},
+		{"/h/dev/app/README.md", false},
+		{"/h/DesktopStuff/x", false},
 	} {
-		if Private(p, "/h") != want {
-			t.Errorf("%s: want %v", p, want)
+		if Private(c.path, "/h") != c.want {
+			t.Errorf("%s: want %v", c.path, c.want)
 		}
 	}
 }
