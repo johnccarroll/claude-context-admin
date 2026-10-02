@@ -179,7 +179,7 @@ func (w *Writer) IndexRemove(index, file string) error {
 
 // ---------- links ----------
 
-var linkRe = regexp.MustCompile(`\[\[([^\]|#]+)((?:[#|][^\]]*)?)\]\]`)
+var linkRe = scan.Wikilink
 
 // RewriteLinks points [[from]] links (any of the names, with or without .md) at to.
 // An empty to turns the link into plain text. It returns the new text and how many changed.

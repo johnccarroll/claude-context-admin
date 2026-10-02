@@ -1,0 +1,9 @@
+[
+  {"text": "See [[deploy-checklist]] and [[project_launch.md]].", "targets": ["deploy-checklist", "project_launch"]},
+  {"text": "Alias [[code-review|the review rule]], heading [[flag-policy#rollout]].", "targets": ["code-review", "flag-policy"]},
+  {"text": "Padded [[ team-map ]] is trimmed.", "targets": ["team-map"]},
+  {"text": "Two on a line: [[a]][[b]]", "targets": ["a", "b"]},
+  {"text": "Not links: [[unclosed, [single], [[]], and [[split\nacross lines]].", "targets": []},
+  {"text": "A link can follow a broken one: [[oops [[real-one]]", "targets": ["real-one"]},
+  {"text": "**Why:** see [[why_note]]\n**How to apply:** [[how-to]]", "targets": ["why_note", "how-to"]}
+]

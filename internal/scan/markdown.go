@@ -85,12 +85,15 @@ func (d doc) memType() string {
 	return d.fm.Type
 }
 
-var wikilink = regexp.MustCompile(`\[\[([^\]|#]+)`)
+// Wikilink matches one [[target]], [[target|alias]] or [[target#heading]] on a single line: group 1
+// is the target, group 2 the |alias or #heading. The scanner, the writer and the UI (web/src/model.ts
+// LINK) must agree on it; testdata/links.json pins all three.
+var Wikilink = regexp.MustCompile(`\[\[([^\[\]|#\n]+)((?:[#|][^\]\n]*)?)\]\]`)
 
 // wikilinks returns raw [[link]] targets, trimmed, with a trailing .md removed.
 func wikilinks(body string) []string {
 	var out []string
-	for _, m := range wikilink.FindAllStringSubmatch(body, -1) {
+	for _, m := range Wikilink.FindAllStringSubmatch(body, -1) {
 		out = append(out, strings.TrimSuffix(strings.TrimSpace(m[1]), ".md"))
 	}
 	return out

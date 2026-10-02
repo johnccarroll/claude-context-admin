@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -313,6 +314,27 @@ func TestRedactPathTokens(t *testing.T) {
 	} {
 		if got := redactPath(in); got != want {
 			t.Errorf("%s: %s", in, got)
+		}
+	}
+}
+
+// The UI (web/src/model.test.ts) reads the same cases, so the scanner and the app can't disagree
+// on what a link is.
+func TestWikilinksSharedCases(t *testing.T) {
+	raw, err := os.ReadFile("testdata/links.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Text    string   `json:"text"`
+		Targets []string `json:"targets"`
+	}
+	if err := json.Unmarshal(raw, &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cases {
+		if got := wikilinks(c.Text); !slices.Equal(got, c.Targets) {
+			t.Errorf("wikilinks(%q) = %q, want %q", c.Text, got, c.Targets)
 		}
 	}
 }
