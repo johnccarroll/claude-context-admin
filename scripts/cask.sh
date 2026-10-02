@@ -17,7 +17,7 @@ cask "claude-context-admin" do
 
   url "https://github.com/johnccarroll/claude-context-admin/releases/download/v#{version}/ClaudeContextAdmin-#{version}-macos.zip"
   name "Claude Context Admin"
-  desc "See and tidy everything Claude Code loads"
+  desc "Control panel for Claude Code memories, skills, plugins and MCP servers"
   homepage "https://github.com/johnccarroll/claude-context-admin"
 
   depends_on macos: :ventura

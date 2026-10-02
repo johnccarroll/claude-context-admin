@@ -75,7 +75,7 @@ cat > "$w/package.json" <<JSON
 {
   "name": "claude-context-admin",
   "version": "$VERSION",
-  "description": "See and tidy everything Claude Code loads: memories, instructions, plugins, MCP, skills, agents and hooks.",
+  "description": "A control panel for Claude Code: manage memories, instructions, skills, plugins, MCP servers and hooks across every project.",
   "license": "MIT",
   "author": "John Carroll",
   "homepage": "https://github.com/$REPO",
