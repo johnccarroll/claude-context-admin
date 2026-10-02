@@ -371,7 +371,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .scopepill .dot{width:7px;height:7px}
 .chipsep{width:1px;align-self:stretch;margin:3px 4px;background:var(--line-2)}
 #mscope{flex:none;border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--fg);border-radius:999px;padding:4px 10px;font:inherit;font-size:13px;max-width:160px}
-.top>div:first-child{flex:1 0 auto} /* the title never truncates: the search box gives way first */
+.top>div:first-child{flex:1 1 0} /* grows into the free space; never narrower than the title (the subtitle gives way) */
 .app:has(#drawer.open) .maptools{right:calc(min(var(--dw),100%) + 16px);transition:right .22s ease}
 .leavebar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid var(--warn);box-shadow:var(--shadow);font-size:13px;z-index:2}
 .leavebar span{flex:1}
@@ -509,11 +509,11 @@ body.resizing{cursor:col-resize;user-select:none}
 .egobody svg:active{cursor:grabbing}
 @media (max-width:820px){.egohead .hide-sm{display:none}}
 /* Page header: back/forward, a divider, then the title with its subtitle aligned under it */
-.tblock{display:flex;align-items:center;gap:16px;min-width:0}
+.tblock{display:flex;align-items:center;gap:16px}
 .top .sub:empty{display:none} /* no subtitle: the title centres in the bar */
 .tblock .navb{margin-left:-6px}
 .tdiv{width:1px;height:30px;background:var(--line);flex:none}
-.tcol{min-width:0;display:grid;gap:2px}
+.tcol{display:grid;gap:2px}
 .lrow.sticky .lpick{left:var(--dpad);right:var(--dpad)}
 .rich.preview{min-height:0}
 .addcard .cmdline{background:var(--sunk);border-color:transparent}
@@ -537,4 +537,7 @@ body.resizing{cursor:col-resize;user-select:none}
 /* A narrow page (the editor docked beside it): the title keeps its room; the button shortens and the
    search box gives way first. */
 .main{container-type:inline-size}
-@container (max-width:640px){.top .wide{display:none}.top .search{min-width:120px}}
+@container (max-width:760px){.top .wide{display:none}.top .search{min-width:120px}}
+.top .ttl{flex:none;min-width:auto}
+.top .ttl h1{flex:none;overflow:visible;min-width:auto}
+.app-shell .tcol .sub{min-width:0;flex:1 1 0}
