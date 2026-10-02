@@ -59,7 +59,7 @@ GLOBAL = [
     ("feedback_no_mocks_db", "feedback", "Real database in tests", "Integration tests hit a real Postgres in Docker, never mocks",
      "**Why:** a mocked migration passed while prod broke in March.\n\n**How to apply:** use `make test-db`. Setup in [[postgres-local]]; migrations follow [[migrations]].", 9),
     ("reference_postgres_local", "reference", "Local Postgres", "make test-db starts Postgres 17 on :54329 with seed data",
-     "Container `nw-pg`, user `dev`, database `northwind_test`. Used by [[no-mocks-db]].", 20),
+     "Container `nw-pg`, user `dev`, database `northwind_test`. Used by [[no-mocks-db]].\n\n```sh\nmake test-db\npsql postgres://dev@localhost:54329/northwind_test\n```", 20),
     ("feedback_migrations", "feedback", "Safe migrations", "Expand, migrate, contract; never drop a column in the same deploy",
      "**Why:** rolling deploys run old and new code side by side.\n\n**How to apply:** three PRs. See [[deploy-checklist]].", 16),
     ("reference_fly_regions", "reference", "Fly.io regions", "Production runs in iad and fra; staging only in iad",
@@ -101,7 +101,7 @@ PROJECTS = {
         ("project_payments_api_contract", "project", "Payments API contract", "POST /charges is idempotent via Idempotency-Key",
          "Retries must reuse the key. Errors follow RFC 9457.", 18),
         ("project_launch_q4", "project", "Q4 launch", "Holiday catalog ships Nov 14; feature freeze Nov 7",
-         "Owner: Priya. Freeze means fixes only. Checklist: [[launch-checklist]]. Flags: [[feature-flags]].", 1),
+         "Owner: Priya. Freeze means fixes only. Checklist: [[launch-checklist]]. Flags: [[feature-flags]].\n\nCut the release branch the morning of the freeze:\n\n```sh\ngit switch -c release/q4 origin/main\ngit push -u origin release/q4\n```", 1),
         ("reference_feature_flags", "reference", "Feature flags", "Flags live in LaunchDarkly; names are kebab-case, scoped by team",
          "Default off in prod. Clean up within two sprints of 100%. Deploy rules: [[deploy-checklist]].", 13),
         ("feedback_a11y", "feedback", "Accessibility", "Every new page passes axe with zero serious issues",
@@ -245,7 +245,7 @@ def memories(items, owner_path, folder=None):
     d = f"{H}/.claude/projects/{enc(owner_path)}/memory"
     if folder in PROJECTS:  # cite shared notes so projects connect through Everywhere
         k = list(PROJECTS).index(folder)
-        items = [(st, ty, ti, su, bo + " " + SEE[(i + k) % 4].format(SHARED[(i * 5 + k * 3) % len(SHARED)]), da)
+        items = [(st, ty, ti, su, bo + ("\n\n" if bo.endswith("```") else " ") + SEE[(i + k) % 4].format(SHARED[(i * 5 + k * 3) % len(SHARED)]), da)
                  for i, (st, ty, ti, su, bo, da) in enumerate(items)]
     items = [(st, ty, ti, su, reachable(bo, items), da) for st, ty, ti, su, bo, da in items]
     lines = ["# Memory Index", ""]

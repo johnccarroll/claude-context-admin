@@ -73,3 +73,23 @@ test('splitDoc: header in plain words for History', () => {
   expect(d.rest).toBe('modified: x');
   expect(d.body).toBe('Body');
 });
+
+import { richText } from '../src/doc';
+
+test('richText: code blocks, inline code, bold and links; nothing inside code is formatted', () => {
+  const L = (k: string) => `<L:${k}>`;
+  expect(richText('See [[a]] and **b**.', L)).toBe('See <L:a> and <b>b</b>.');
+  expect(richText('Run `make [[x]]` now', L)).toBe('Run <code>make [[x]]</code> now');
+  expect(richText('Before\n```ts\nconst a = 1 < 2; // [[not-a-link]] **no**\n```\nAfter [[b]]', L))
+    .toBe('Before<pre class="code"><span class="lang">ts</span><code>const a = 1 &lt; 2; // [[not-a-link]] **no**</code></pre>After <L:b>');
+  expect(richText('````\n```inner```\n````', L)).toBe('<pre class="code"><code>```inner```</code></pre>');
+  expect(richText('```\nunclosed [[c]]', L)).toBe('```\nunclosed <L:c>'); // no closing fence: plain text
+  expect(richText('<script>', L)).toBe('&lt;script&gt;');
+});
+
+test('richText: headings, quotes and lists', () => {
+  const L = (k: string) => `<L:${k}>`;
+  expect(richText('# Title\n> moved, see [[a]]\n> line 2\n- one `x`\n- two\n1. first\nplain', L))
+    .toBe('<div class="h h1">Title</div><blockquote>moved, see <L:a>\nline 2</blockquote><ul><li>one <code>x</code></li><li>two</li></ul><ol><li>first</li></ol>plain');
+  expect(richText('a\nb', L)).toBe('a\nb');
+});

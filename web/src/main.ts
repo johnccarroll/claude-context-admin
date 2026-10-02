@@ -2,7 +2,7 @@ import './styles.css';
 import { act, decide, loadActivity, prefsSaves, rescan, savePrefs, type Activity, loadBudget, loadFile, loadPrefs, loadState, loadVersions, previewCaps, reveal, subscribe, undo, type Version } from './api';
 import { checkbox, clearSelection, renderSelectionBar, selected, wireCheckboxes } from './bulk';
 import { diffLines, hunks } from './diff';
-import { composeTool, splitDoc, splitTool, type ToolDoc } from './doc';
+import { composeTool, richText, splitDoc, splitTool, type ToolDoc } from './doc';
 import { openPalette } from './palette';
 import { drawMap, markMap } from './map';
 import { openAdd } from './add';
@@ -860,16 +860,12 @@ function memoryMenu(m: Mem): MenuItem[] {
 /** Memory text for reading: [[links]] become chips named by the memory they open (a missing one
  *  says so), and **bold** / `code` render. The file itself keeps the [[slug]] Claude reads. */
 function richHTML(text: string, dir: string): string {
-  const inline = (x: string): string => esc(x).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>');
-  let out = '', at = 0;
-  for (const x of text.matchAll(LINK)) {
-    const key = x[1].trim().replace(/\.md$/, ''), t = model.resolve(dir, key);
-    out += inline(text.slice(at, x.index)) + (t
+  return richText(text, (key) => {
+    const t = model.resolve(dir, key);
+    return t
       ? `<button type="button" class="lchip" data-id="${esc(t.id)}" title="Open “${esc(t.title)}”"><span class="dot" style="background:${model.projectOf(t.project).color}"></span>${esc(t.title)}</button>`
-      : `<button type="button" class="lchip bad" data-miss="${esc(key)}" title="This memory doesn't exist. Click to fix the link.">${esc(human(key))}<span>missing</span></button>`);
-    at = (x.index ?? 0) + x[0].length;
-  }
-  return out + inline(text.slice(at));
+      : `<button type="button" class="lchip bad" data-miss="${esc(key)}" title="This memory doesn't exist. Click to fix the link.">${esc(human(key))}<span>missing</span></button>`;
+  });
 }
 
 /** The fixes for one broken link in memory m: point it at a close match, write the note, or drop it. */
@@ -888,10 +884,50 @@ function fixLink(at: HTMLElement, m: Mem, key: string): void {
 
 /** Typing [[ in memory text lists the memories it can link to (dir's own, then Everywhere);
  *  picking one writes its link. Arrows move, Enter or Tab picks, Escape closes. */
+/** The bar above memory text: Link a memory (opens the [[ list), Bold, Code, and, while the cursor
+ *  is in a link, which memory it opens with Change and Remove. It only edits the text box. */
+function editTools(ta: HTMLTextAreaElement, dir: () => string): HTMLElement {
+  const bar = document.createElement('div');
+  bar.className = 'ftools'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Formatting');
+  bar.innerHTML = `<button type="button" class="btn sm quiet" data-t="link" title="Link a memory (or type [[)">[[ ]] Link a memory</button><button type="button" class="btn sm quiet" data-t="bold" title="Bold"><b>B</b></button><button type="button" class="btn sm quiet" data-t="code" title="Code (a block when several lines are selected)"><span class="mono">&lt;/&gt;</span></button><span class="fctx" aria-live="polite"></span>`;
+  ta.before(bar);
+  bar.hidden = ta.hidden;
+  new MutationObserver(() => { bar.hidden = ta.hidden; }).observe(ta, { attributes: true, attributeFilter: ['hidden'] });
+  const edit = (from: number, to: number, text: string, sel?: [number, number]): void => {
+    ta.focus(); ta.setRangeText(text, from, to, 'end');
+    if (sel) ta.setSelectionRange(sel[0], sel[1]);
+    ta.dispatchEvent(new Event('input', { bubbles: true })); // an edit, and it opens the [[ list when that's what was typed
+  };
+  const wrap = (open: string, close = open): void => {
+    const [a, b] = [ta.selectionStart, ta.selectionEnd], t = ta.value.slice(a, b);
+    edit(a, b, open + t + close, [a + open.length, a + open.length + t.length]);
+  };
+  const here = (): RegExpMatchArray | undefined => [...ta.value.matchAll(LINK)].find((x) => (x.index ?? 0) < ta.selectionStart && ta.selectionStart < (x.index ?? 0) + x[0].length);
+  const ctx = $('.fctx', bar);
+  const show = (): void => {
+    const l = here();
+    if (!l) { ctx.innerHTML = ''; return; }
+    const key = l[1].trim().replace(/\.md$/, ''), t = model.resolve(dir(), key);
+    ctx.innerHTML = `${t ? `Opens <b>${esc(t.title)}</b>` : `<span class="err">“${esc(human(key))}” doesn’t exist</span>`}<button type="button" class="link2" data-t="change">Change</button><button type="button" class="link2" data-t="unlink">Remove link</button>`;
+  };
+  for (const ev of ['keyup', 'click', 'input', 'focus']) ta.addEventListener(ev, show);
+  bar.onmousedown = (e) => e.preventDefault(); // keep the cursor where it is
+  bar.onclick = (e) => {
+    const t = (e.target as HTMLElement).closest<HTMLElement>('[data-t]')?.dataset.t, l = here();
+    const [a, b] = [ta.selectionStart, ta.selectionEnd], picked = ta.value.slice(a, b);
+    if (t === 'link') edit(a, b, '[[' + picked); // the list filters by any selected text
+    else if (t === 'bold') wrap('**');
+    else if (t === 'code') picked.includes('\n') ? wrap('```\n', '\n```') : wrap('`');
+    else if (t === 'change' && l) edit(l.index ?? 0, (l.index ?? 0) + l[0].length, '[[');
+    else if (t === 'unlink' && l) edit(l.index ?? 0, (l.index ?? 0) + l[0].length, l[0].replace(LINK, (_, k: string) => human(k.trim().replace(/\.md$/, ''))));
+  };
+  return bar;
+}
+
 function linkPicker(ta: HTMLTextAreaElement, dir: () => string, self?: Mem): void {
   const box = document.createElement('div');
   box.className = 'lpick'; box.id = ta.id + '-links'; box.setAttribute('role', 'listbox'); box.hidden = true;
-  ta.after(box);
+  editTools(ta, dir).append(box); // drops down from the toolbar, which stays in view on long text
   ta.setAttribute('aria-autocomplete', 'list'); ta.setAttribute('aria-controls', box.id);
   let hits: Mem[] = [], sel = 0, from = -1;
   const close = (): void => { box.hidden = true; ta.removeAttribute('aria-activedescendant'); };
@@ -915,7 +951,6 @@ function linkPicker(ta: HTMLTextAreaElement, dir: () => string, self?: Mem): voi
       .sort((a, b) => Number(dirOf(b.path) === d) - Number(dirOf(a.path) === d) || Number(b.title.toLowerCase().startsWith(w)) - Number(a.title.toLowerCase().startsWith(w)) || a.title.localeCompare(b.title))
       .slice(0, 8);
     sel = 0; paint(); box.hidden = false;
-    box.style.top = `${ta.offsetTop + ta.offsetHeight}px`; // under the text box (.field is a grid)
   });
   ta.addEventListener('keydown', (e) => {
     if (box.hidden) return;
@@ -949,7 +984,7 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
     <div class="field"><label for="f-desc">One-line summary</label><input id="f-desc" value="${esc(m.desc)}" placeholder="What Claude sees in its index"><span class="hint">Claude reads this line every session to decide whether to open the full memory.</span></div>
     <div class="field"><div class="lrow"><label for="f-body">Details</label><button class="btn sm quiet" id="f-mode" hidden>Edit</button></div>
      <div class="rich" id="f-read"><span class="hint">Loading…</span></div><textarea id="f-body" spellcheck="true" hidden placeholder="Add details. Type [[ to link another memory."></textarea>
-     <span class="hint" id="f-tip" hidden>Type [[ to link another memory.</span></div>
+</div>
     <div class="field"><label>Connections</label><div class="conn">${egoSVG(m)}${[...m.inn.slice(7), ...m.out.slice(7)].length ? `<div class="morel"><span class="hint">Also:</span>${[...new Set([...m.inn.slice(7), ...m.out.slice(7)])].map((t) => `<button type="button" class="lchip" data-id="${esc(t.id)}"><span class="dot" style="background:${model.projectOf(t.project).color}"></span>${esc(t.title)}</button>`).join('')}</div>` : ''}<div class="cap"><span>${m.inn.length} mention this · ${m.out.length} mentioned here</span><span>Click a name to open it</span></div></div></div>
     <div class="hint" style="font-family:var(--f-mono)">${esc(m.path.replace(model.state.home, '~'))}</div>
    </div>
@@ -965,7 +1000,7 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
   if (tab === 'history') $<HTMLButtonElement>('.dtabs button[data-tab="history"]', d).click();
   const ta = $<HTMLTextAreaElement>('#f-body'), rd = $('#f-read'), mode = $<HTMLButtonElement>('#f-mode');
   const showDetails = (edit: boolean): void => {
-    ta.hidden = !edit; rd.hidden = edit; $('#f-tip').hidden = !edit; mode.textContent = edit ? 'Preview' : 'Edit';
+    ta.hidden = !edit; rd.hidden = edit; mode.textContent = edit ? 'Preview' : 'Edit';
     if (edit) ta.focus();
     else rd.innerHTML = ta.value.trim() ? richHTML(ta.value, dirOf(m.path)) : '<span class="hint">No details yet. Click to add some.</span>';
   };
@@ -1268,7 +1303,7 @@ function openNewMemory(): void {
     <div class="field"><label for="n-proj">Loads in</label><select id="n-proj">${targets.map((p) => `<option value="${esc(p.key)}" ${p.key === start ? 'selected' : ''}>${esc(p.key === GLOBAL ? 'Everywhere (every project)' : p.label)}</option>`).join('')}</select></div>
     <div class="field"><label for="n-kind">Kind</label><select id="n-kind">${Object.keys(KIND).map((k) => `<option value="${k}" ${k === 'feedback' ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
     <div class="field"><label for="n-desc">One-line summary</label><input id="n-desc" placeholder="What Claude sees in its index"></div>
-    <div class="field"><label for="n-body">Details</label><textarea id="n-body" placeholder="The rule or fact. Then why it matters, and how to apply it."></textarea><span class="hint">Type [[ to link another memory.</span></div>
+    <div class="field"><label for="n-body">Details</label><textarea id="n-body" placeholder="The rule or fact. Then why it matters, and how to apply it."></textarea></div>
    </div>
    <div class="dfoot"><button class="btn pri" id="ncreate">Create</button><span class="spacer"></span></div>`;
   d.classList.add('open');

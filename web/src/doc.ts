@@ -1,5 +1,6 @@
 // Splitting skill, agent and memory files into what the forms and History show, and back.
-import { human, KIND } from './model';
+import { human, KIND, LINK } from './model';
+import { esc } from './ui';
 
 /** A file's header in plain words (title, summary, kind) and its body, for History. Display only:
  *  any other header change is reported, not hidden. */
@@ -44,4 +45,49 @@ export function composeTool(d: ToolDoc, desc: string, body: string): string {
   const lines = [...d.lines];
   if (d.di >= 0 && desc !== d.desc) lines[d.di] = 'description: ' + JSON.stringify(desc); // a JSON string is valid YAML
   return `---\n${lines.join('\n')}\n---\n${body}`;
+}
+
+/** Memory text for reading, as HTML: ``` fenced code blocks (with their language), headings, > quotes
+ *  and lists, and within lines **bold**, `code` and [[links]], each link drawn by link(key). Nothing
+ *  inside code is formatted or treated as a link. Anything else stays as written. */
+export function richText(text: string, link: (key: string) => string): string {
+  const fence = /^(`{3,})[ \t]*([\w+#.-]*)[^\n]*\n([\s\S]*?)^\1`*[ \t]*$\n?/gm;
+  let out = '', at = 0;
+  for (const f of text.matchAll(fence)) {
+    out += blocks(text.slice(at, f.index).replace(/\n+$/, ''), link); // the block's own margin spaces it
+    out += `<pre class="code">${f[2] ? `<span class="lang">${esc(f[2])}</span>` : ''}<code>${esc(f[3].replace(/\n$/, ''))}</code></pre>`;
+    at = (f.index ?? 0) + f[0].length;
+  }
+  return out + blocks(at ? text.slice(at).replace(/^\n+/, '') : text, link);
+}
+
+/** Line-level Markdown: headings, quotes and lists become elements; other lines stay text. */
+function blocks(text: string, link: (key: string) => string): string {
+  const lines = text.split('\n'), out: string[] = [];
+  let i = 0, prevText = false;
+  const take = (re: RegExp): string[] => { const xs: string[] = []; while (i < lines.length && re.test(lines[i])) xs.push(lines[i++]); return xs; };
+  const block = (html: string): void => { out.push(html); prevText = false; };
+  const BULLET = /^\s*[-*+]\s+/, NUM = /^\s*\d+[.)]\s+/;
+  while (i < lines.length) {
+    const l = lines[i], h = /^(#{1,6})\s+(.*)$/.exec(l);
+    if (h) { i++; block(`<div class="h h${h[1].length}">${inline(h[2], link)}</div>`); }
+    else if (/^>/.test(l)) block(`<blockquote>${inline(take(/^>/).map((x) => x.replace(/^>\s?/, '')).join('\n'), link)}</blockquote>`);
+    else if (BULLET.test(l)) block(`<ul>${take(BULLET).map((x) => `<li>${inline(x.replace(BULLET, ''), link)}</li>`).join('')}</ul>`);
+    else if (NUM.test(l)) block(`<ol>${take(NUM).map((x) => `<li>${inline(x.replace(NUM, ''), link)}</li>`).join('')}</ol>`);
+    else { out.push((prevText ? '\n' : '') + inline(l, link)); prevText = true; i++; }
+  }
+  return out.join('');
+}
+
+function inline(text: string, link: (key: string) => string): string {
+  return text.split(/(`[^`\n]+`)/).map((part, i) => {
+    if (i % 2) return `<code>${esc(part.slice(1, -1))}</code>`;
+    let out = '', at = 0;
+    const words = (x: string): string => esc(x).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+    for (const l of part.matchAll(LINK)) {
+      out += words(part.slice(at, l.index)) + link(l[1].trim().replace(/\.md$/, ''));
+      at = (l.index ?? 0) + l[0].length;
+    }
+    return out + words(part.slice(at));
+  }).join('');
 }
