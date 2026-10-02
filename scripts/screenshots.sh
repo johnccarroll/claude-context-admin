@@ -11,9 +11,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/dist/mac/Claude Context Admin.app/Contents/MacOS/Claude Context Admin"
 OUT="$ROOT/docs/screenshots"
-ID=dev.johncarroll.claude-context-admin
 TMP="$(mktemp -d)"
-trap 'osascript -e "quit app \"Claude Context Admin\"" >/dev/null 2>&1 || true; kill "${ENGINE:-}" 2>/dev/null || true; defaults delete "$ID" NSRequiresAquaSystemAppearance 2>/dev/null || true; rm -rf "$TMP"' EXIT
+trap 'osascript -e "quit app \"Claude Context Admin\"" >/dev/null 2>&1 || true; kill "${ENGINE:-}" 2>/dev/null || true; rm -rf "$TMP"' EXIT
 [ -x "$APP" ] || { echo "build the app first: scripts/build-mac-app.sh 0.0.0-dev" >&2; exit 1; }
 
 # The app's window id, for screencapture -l.
@@ -39,12 +38,10 @@ REAL="$(python3 -c "import os;print(os.path.realpath('$HOME_DIR'))")"
 ST="$REAL/code/storefront"
 MEM="$(ls "$REAL"/.claude/projects/*storefront/memory/project_launch_q4.md)"
 
-# shot <file> <page hash> [light]
+# shot <file> <page hash>
 shot() {
   osascript -e 'quit app "Claude Context Admin"' >/dev/null 2>&1 || true
   while pgrep -f "Claude Context Admin.app/Contents/MacOS" >/dev/null; do sleep 0.3; done
-  if [ "${3:-}" = light ]; then defaults write "$ID" NSRequiresAquaSystemAppearance -bool YES
-  else defaults delete "$ID" NSRequiresAquaSystemAppearance 2>/dev/null || true; fi
   CCA_URL="$URL#$2" "$APP" >/dev/null 2>&1 &
   sleep 5
   osascript -e 'tell application "Claude Context Admin" to activate' \
@@ -53,12 +50,7 @@ shot() {
   screencapture -x -o -l "$("$TMP/wid" | sort -n | tail -1)" "$OUT/$1.png"
   echo "$1"
 }
-shot memories "memories?p=$(enc "$ST")"
 shot memory-editor "memories?p=$(enc "$ST")&m=$(enc "$MEM")"
 shot what-loads "what?p=$(enc "$ST")"
 shot review review
 shot map map
-shot plugins plugins
-shot hooks hooks
-shot activity activity
-shot skills-light skills light

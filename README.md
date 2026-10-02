@@ -7,39 +7,56 @@ plugins, MCP servers and hooks, spread across your home folder and every repo. C
 Admin puts all of it in one local app. It shows what loads in each project and what it costs,
 finds what's broken, stale or duplicated, and fixes it, with undo for every change.
 
-![Memories for one project, with the Everywhere memories Claude also loads there](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/memories.png)
+![A tour: open a memory, follow its links, fix a broken one, then the map, what loads and Review](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/tour.gif)
 
 ## What it does
 
-- **Everything in one place.** Memories, instructions, skills, commands, agents, plugins, MCP
-  servers and hooks, for every project. Pick a project and every page shows what Claude loads
-  there; layer chips narrow it to Everywhere, the project, only you, or plugins.
-- **Edit memories like notes.** Title, kind, the one-line summary Claude reads every session,
-  and the details. Renames keep links and MEMORY.md in sync. Every version is kept, whether you
-  or Claude changed it, with a diff and one-click restore.
-- **A review queue for upkeep.** Broken links, unreadable headers, copies across projects,
-  memories Claude never opens, unused MCP servers and plugins, hooks pointing at missing
-  scripts, a MEMORY.md near its load limit, and memories stranded when a repo was renamed. Each
-  card shows the evidence and the exact change; nothing happens until you accept.
-- **Instruction health.** Flags prompting written for older models (stacked ALL-CAPS rules,
-  "think step by step", retired model names, paths that no longer exist), following Anthropic's
-  prompt-audit guidance, and rewrites emphasis at normal volume with a preview.
-- **What loads here.** The tokens each project spends before your first message, by source.
-- **Add MCP servers, plugins and skills by pasting.** Paste the JSON or command an install guide
-  gives you; cca shows exactly what will run, asks where it applies, and has Claude Code add it.
-  Keys become `${ENV_VAR}` references that you set in your shell profile, so a key never sits
-  in a config file or on a command line.
-- **Claude helps, you decide.** The optional plugin gives Claude read access and lets it
-  *suggest* changes. Suggestions appear in Review with the exact text they would write.
+### See what Claude loads, and what it costs
+
+Pick a project and every page shows what Claude loads there: memories, CLAUDE.md and AGENTS.md,
+rules, skills, plugins, MCP servers and hooks. **What loads here** adds up the tokens each source
+spends before your first message, and how close MEMORY.md is to its load limit. Click any row to
+open the files behind it.
+
+![What loads at the start of a session in one project, by source](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/what-loads.png)
+
+### Edit memories like notes
+
+Title, kind, the one-line summary Claude reads every session, and the details. Links to other
+memories read as their names; a broken one is flagged with a one-click fix, and typing `[[` offers
+the memories you can link to. Renames keep links and MEMORY.md in sync, and every version is kept,
+whether you or Claude changed it, with a diff and one-click restore. Follow links or the graph
+from memory to memory, and step back with the arrows.
+
+![A memory open in the editor, with its links, connections and history](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/memory-editor.png)
+
+### A review queue for upkeep
+
+Broken links, copies across projects, memories Claude never opens, unused MCP servers and
+plugins, hooks pointing at missing scripts, a MEMORY.md near its limit, memories stranded when a
+repo was renamed, and instructions written for older models (stacked ALL-CAPS rules, "think step
+by step", retired model names). Each card shows the evidence and the exact change; nothing happens
+until you accept it, and Activity can undo it.
+
+![Review: what to fix, with the evidence and the exact change](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/review.png)
+
+### See how it connects
+
+The map draws every memory and its links across projects, so orphans and near-duplicates stand
+out. Hover to preview, click to open.
+
+![Map of how memories connect across projects](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/map.png)
+
+### And
+
+- **Add MCP servers, plugins and skills by pasting** the JSON or command an install guide gives
+  you. cca shows exactly what will run, asks where it applies, and has Claude Code add it. Keys
+  become `${ENV_VAR}` references, so a key never sits in a config file or on a command line.
+- **Claude helps, you decide.** The optional plugin gives Claude read access and lets it *suggest*
+  changes, which appear in Review with the exact text they would write.
 - **Bulk edits, search, undo.** Select many memories to move, retype or trash them. ⌘K finds
   anything. Activity lists every change, by you or Claude, with Undo.
-
-| | |
-|---|---|
-| ![Review: what to fix, with the evidence](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/review.png) | ![Map of how memories connect across projects](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/map.png) |
-| ![Memory editor with links and history](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/memory-editor.png) | ![What loads at the start of a session](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/what-loads.png) |
-| ![Plugins with their cost and use](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/plugins.png) | ![Hooks by when they run](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/hooks.png) |
-| ![Activity: every change, with Undo](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/activity.png) | ![Skills and commands, light theme](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/skills-light.png) |
+- **Light and dark**, a resizable editor, and back/forward everywhere.
 
 ## Install
 
