@@ -4,7 +4,7 @@ Every coupling point is listed here, with where it lives in our code and what ha
 - `cca doctor` checks the rows marked **canary** against the live machine and exits 1 when one breaks.
 - When a Claude Code update breaks something, fix the one file named in its row.
 
-Last verified against Claude Code **2.1.287** (2026-10-01).
+Last verified against Claude Code **2.1.288** (2026-10-02).
 
 ## Documented: stable, low risk
 
@@ -18,6 +18,7 @@ Last verified against Claude Code **2.1.287** (2026-10-01).
 | Skills `skills/*/SKILL.md`, commands `commands/**/*.md`, agents `agents/*.md` | `scan/toolkit.go` | Items disappear. A count of zero against known files means look here. |
 | Hooks in the `hooks` key of each settings file | `scan/toolkit.go`, `write/config.go` | Hooks disappear. Unknown settings keys are kept on write. |
 | Precedence: MCP local > project > user > plugin; personal skills beat project ones | `loads.Shadows` | "Overridden" is wrong. Check [MCP](https://code.claude.com/docs/en/mcp) and [skills](https://code.claude.com/docs/en/skills). |
+| `[[links]]` between memories: not a Claude Code format but the Obsidian-style convention memories use (Claude reads them as text) | One pattern, `scan.Wikilink`, for the scanner, the writer and the UI (`web/src/model.ts` `LINK`); `scan/testdata/links.json` pins all three | Nothing in Claude Code can break it. If the convention changes, update the pattern and the fixture together. |
 | Session index: `projects/<dir>/sessions-index.json` `originalPath` | `scan/scan.go` (`resolveDir`, only when no transcripts are left) | A pruned project shows under its raw folder name and the moved-folder repair can't find it. Nothing else depends on it. |
 
 ## Official CLI: stable, preferred for every change
