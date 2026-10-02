@@ -1,7 +1,7 @@
 // ⌘K search across memories, instructions, skills, plugins and projects. Names and summaries
 // match instantly in the browser; full text comes from the server as you type.
 import { search, type Hit } from './api';
-import { dirOf, human, KIND, LINK, type Mem, type Model } from './model';
+import { dirOf, human, KIND, LINK, linkKey, type Mem, type Model } from './model';
 import { $, $$, esc } from './ui';
 
 interface Hooks {
@@ -44,7 +44,7 @@ export function openPalette(model: Model, h: Hooks): void {
     // MEMORY.md only repeats memories' titles and summaries, which already match above.
     const files = hits.filter((x) => x.kind !== 'memory' && x.kind !== 'memory-index');
     // Links in a snippet read as the memory they open, as in the editor.
-    const named = (text: string, dir: string): string => text.replace(LINK, (_, k: string) => '“' + (model.resolve(dir, k)?.title ?? human(k.trim().replace(/\.md$/, ''))) + '”');
+    const named = (text: string, dir: string): string => text.replace(LINK, (_, k: string) => '“' + (model.resolve(dir, k)?.title ?? human(linkKey(k))) + '”');
     const toolkit = [...model.entries('plugin'), ...model.entries('mcp'), ...model.entries('agent').filter((e) => e.scope !== 'plugin')]
       .filter((e) => w && has(e.name + ' ' + (e.description ?? ''))).slice(0, 5);
     const projects = model.projects.filter((p) => w && has(p.label)).slice(0, 4);

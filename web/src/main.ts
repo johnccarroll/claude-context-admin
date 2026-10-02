@@ -2,6 +2,7 @@ import './styles.css';
 import { act, decide, loadActivity, prefsSaves, rescan, savePrefs, type Activity, loadBudget, loadFile, loadPrefs, loadState, loadVersions, previewCaps, reveal, subscribe, undo, type Version } from './api';
 import { checkbox, clearSelection, renderSelectionBar, selected, wireCheckboxes } from './bulk';
 import { select } from 'd3-selection';
+import 'd3-transition'; // .transition() on the expanded graph's zoom
 import { zoom as d3zoom } from 'd3-zoom';
 import { diffLines, hunks } from './diff';
 import { composeTool, richText, splitDoc, splitTool, type ToolDoc } from './doc';
@@ -9,7 +10,7 @@ import { openPalette } from './palette';
 import { drawMap, markMap } from './map';
 import { openAdd } from './add';
 import {
-  agents, buildModel, buildReview, dirOf, pluginState, human, KHELP, LINK, similarity, KIND, mcpServers, PLURAL, plugins, skills,
+  agents, buildModel, buildReview, closest, dirOf, pluginState, human, KHELP, LINK, linkKey, KIND, mcpServers, PLURAL, plugins, skills,
   type Action, type Mem, type Model, type ReviewItem, type Row,
 } from './model';
 import { renderProjects } from './sidebar';
@@ -854,9 +855,9 @@ function egoSVG(m: Mem, max = 7, W = 420, minH = 140): string {
     ${!L.length && !R.length && !m.missing.length ? `<text x="${cx}" y="${cy + 52}" text-anchor="middle" font-size="12" fill="${cssVar('var(--muted)')}" ${font}>Not connected to anything yet</text>` : ''}</svg>`;
 }
 
-/** Clicks and Enter on the graph's memories (and the overflow chips) go to pick(). */
+/** Clicks and Enter on the graph's memories go to pick(). */
 function wireEgo(root: HTMLElement, pick: (t: Mem) => void): void {
-  $$('.eg, .morel .lchip', root).forEach((g) => {
+  $$('.eg', root).forEach((g) => {
     const go = (): void => { const t = model.byId.get(g.dataset.id ?? ''); if (t) pick(t); };
     g.onclick = go;
     g.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
@@ -928,9 +929,7 @@ function richHTML(text: string, dir: string): string {
 /** The fixes for one broken link in memory m: point it at a close match, write the note, or drop it. */
 function fixLink(at: HTMLElement, m: Mem, key: string): void {
   if (dirty) { toast('Save or discard your edits first, then fix the link.'); return; }
-  const near = model.linkable(dirOf(m.path)).filter((c) => c !== m)
-    .map((c) => ({ c, s: Math.max(similarity(key, c.stem), similarity(key, c.title)) })).filter((x) => x.s >= 0.25)
-    .sort((a, b) => b.s - a.s).slice(0, 4);
+  const near = closest(model, dirOf(m.path), key, m).filter((x) => x.s >= 0.25).slice(0, 4);
   menu(at, [
     ...near.map(({ c }): MenuItem => [`Link to “${c.title}”`, () => void run('relink', { from: key, to: c.stem, paths: [m.path] })]),
     [`Create “${human(key)}” as a new note`, () => void run('create-stub', { name: key, dir: dirOf(m.path) })],
@@ -977,11 +976,11 @@ function editTools(ta: HTMLTextAreaElement, dir: () => string, row: HTMLElement)
   const code = (): void => (picked().includes('\n') ? wrap('```\n', '\n```') : wrap('`'));
   const here = (): RegExpMatchArray | undefined => [...ta.value.matchAll(LINK)].find((x) => (x.index ?? 0) < ta.selectionStart && ta.selectionStart < (x.index ?? 0) + x[0].length);
   const linkItems = (l: RegExpMatchArray): MenuItem[] => {
-    const key = l[1].trim().replace(/\.md$/, ''), t = model.resolve(dir(), key), at = l.index ?? 0;
+    const key = linkKey(l[1]), t = model.resolve(dir(), key), at = l.index ?? 0;
     return [
       ...(t ? [[`Open “${t.title}”`, () => openMemory(t)] as MenuItem] : []),
       [t ? 'Change link' : `“${human(key)}” doesn’t exist: pick a memory`, () => edit(at, at + l[0].length, '[[')],
-      ['Remove link', () => edit(at, at + l[0].length, l[0].replace(LINK, (_, k: string) => human(k.trim().replace(/\.md$/, ''))))],
+      ['Remove link', () => edit(at, at + l[0].length, l[0].replace(LINK, (_, k: string) => human(linkKey(k))))],
     ];
   };
   const linkBtn = $<HTMLButtonElement>('[data-t="link"]', tools);
@@ -1073,8 +1072,8 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
     <div class="field"><input class="title-in" id="f-title" value="${esc(m.title)}" aria-label="Title"><span class="hint">Updated ${esc(fmtDate(m.modified))} · ${m.uses ? `Claude opened it ${m.uses === 1 ? 'once' : `${m.uses} times`}, most recently ${esc(ago(m.lastUsed))}` : 'Claude hasn’t opened it in 90 days'}</span><span class="hint" id="f-rename" hidden>Saving renames it${m.inn.length ? `, and updates ${m.inn.length === 1 ? 'the memory' : `the ${m.inn.length} memories`} that link to it` : ''}.</span></div>${notices}
     <div class="field"><label for="f-kind">Kind</label><select id="f-kind">${KIND[m.type] ? '' : `<option value="${esc(m.type)}" selected>${m.type ? esc(m.type) + ' · kept as it is' : 'No kind set'}</option>`}${Object.keys(KIND).map((k) => `<option value="${k}" ${k === m.type ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
     <div class="field"><label for="f-desc">One-line summary</label><input id="f-desc" value="${esc(m.desc)}" placeholder="What Claude sees in its index"><span class="hint">Claude reads this line every session to decide whether to open the full memory.</span></div>
-    <details class="field connbox" id="f-conn"${connOpen() ? ' open' : ''}><summary>Connections <span class="hint">${m.inn.length} mention this · ${m.out.length} mentioned here${m.missing.length ? ` · ${m.missing.length} broken` : ''}</span></summary><div class="conn"><button type="button" class="egexp" id="f-egexp" title="Expand: every connection, drag to move, zoom">⤢ Expand</button>${egoSVG(m)}${[...m.inn.slice(7), ...m.out.slice(7)].length ? `<div class="morel"><span class="hint">Also:</span>${[...new Set([...m.inn.slice(7), ...m.out.slice(7)])].map((t) => `<button type="button" class="lchip" data-id="${esc(t.id)}"><span class="dot" style="background:${model.projectOf(t.project).color}"></span>${esc(t.title)}</button>`).join('')}</div>` : ''}</div></details>
-    <div class="field"><div class="lrow sticky"><label for="f-body">Details</label><span class="seg" role="group" aria-label="Details view" id="f-mode" hidden><button type="button" data-m="read" aria-pressed="true">Read</button><button type="button" data-m="edit" aria-pressed="false">Edit</button></span></div>
+    <details class="field connbox" id="f-conn"${connOpen() ? ' open' : ''}><summary>Connections <span class="hint">${m.inn.length} mention this · ${m.out.length} mentioned here${m.missing.length ? ` · ${m.missing.length} broken` : ''}</span></summary><div class="conn"><button type="button" class="egexp" id="f-egexp" title="Expand: every connection, drag to move, zoom">⤢ Expand${m.inn.length > 7 || m.out.length > 7 ? ` · ${Math.max(0, m.inn.length - 7) + Math.max(0, m.out.length - 7)} more` : ''}</button>${egoSVG(m)}</div></details>
+    <div class="field"><div class="lrow sticky"><label for="f-body">Details</label><span class="vtoggle" role="group" aria-label="Details view" id="f-mode" hidden><button type="button" data-m="read" aria-pressed="true">Read</button><button type="button" data-m="edit" aria-pressed="false">Edit</button></span></div>
      <div class="rich" id="f-read"><span class="hint">Loading…</span></div><textarea id="f-body" spellcheck="true" hidden placeholder="Add details. Type [[ to link another memory."></textarea>
 </div>
     <div class="hint" style="font-family:var(--f-mono)">${esc(m.path.replace(model.state.home, '~'))}</div>

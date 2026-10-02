@@ -98,6 +98,16 @@ func (e errConfirm) Error() string { return e.msg }
 
 func (e errUser) Error() string { return e.msg }
 
+// entries checks that every path is a scanned entry of one of these kinds.
+func (s *Server) entries(paths []string, kinds ...entry.Kind) error {
+	for _, p := range paths {
+		if _, err := s.entry(p, kinds...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Server) entry(path string, kinds ...entry.Kind) (entry.Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -348,10 +358,8 @@ func (s *Server) do(ctx context.Context, wr *write.Writer, op string, a args) (_
 
 	case "relink", "unlink":
 		paths := a.strs("paths")
-		for _, p := range paths {
-			if _, err := s.entry(p, md...); err != nil {
-				return "", nil, err
-			}
+		if err := s.entries(paths, md...); err != nil {
+			return "", nil, err
 		}
 		from, to := a.str("from"), a.str("to")
 		if op == "unlink" {
@@ -568,10 +576,8 @@ func (s *Server) do(ctx context.Context, wr *write.Writer, op string, a args) (_
 
 	case "bulk":
 		paths := a.strs("paths")
-		for _, p := range paths {
-			if _, err := s.entry(p, md...); err != nil {
-				return "", nil, err
-			}
+		if err := s.entries(paths, md...); err != nil {
+			return "", nil, err
 		}
 		dir := a.str("dir")
 		if a.str("action") == "move" && !s.memoryDirOK(dir) {

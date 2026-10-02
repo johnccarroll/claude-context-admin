@@ -42,6 +42,8 @@ export interface Model {
 
 /** One [[link]] in memory text: the whole match, its target and where it starts. */
 export const LINK = /\[\[([^[\]|#\n]+)(?:[|#][^\]\n]*)?\]\]/g; // = scan.Wikilink
+/** A [[link]]'s key as the scanner reads it: trimmed, without .md. */
+export const linkKey = (k: string): string => k.trim().replace(/\.md$/, '');
 export const dirOf = (p: string): string => p.slice(0, p.lastIndexOf('/'));
 
 export function buildModel(state: State, prefs: Prefs = { projects: {}, order: [] }): Model {
@@ -74,7 +76,7 @@ export function buildModel(state: State, prefs: Prefs = { projects: {}, order: [
   const globalDir = mems.find((m) => m.project === GLOBAL && !m.agent)?.path;
   const globalIndex = globalDir ? index.get(dirOf(globalDir)) : undefined;
   const resolve = (dir: string, key: string): Mem | undefined => {
-    const k = key.trim().replace(/\.md$/, ''); // as the scanner reads it
+    const k = linkKey(key);
     return index.get(dir)?.get(k) ?? globalIndex?.get(k);
   };
   const linkable = (dir: string): Mem[] => mems.filter((m) => !m.agent && (dirOf(m.path) === dir || (globalDir && dirOf(m.path) === dirOf(globalDir))));
@@ -184,6 +186,12 @@ function proposalDetails(m: Model, a: Record<string, unknown>): string {
     Array.isArray(v) ? `${lab(k)} (${v.length}):\n${v.map((x) => '  ' + show(x)).join('\n')}` : `${lab(k)}: ${k === 'type' ? KIND[String(v)] ?? show(v) : show(v)}`).join('\n');
 }
 
+/** Memories a link in dir could point to instead of key, closest first (by file name or title). */
+export function closest(m: Model, dir: string, key: string, skip?: Mem): { c: Mem; s: number }[] {
+  return m.linkable(dir).filter((c) => c !== skip)
+    .map((c) => ({ c, s: Math.max(similarity(key, c.stem), similarity(key, c.title)) })).sort((a, b) => b.s - a.s);
+}
+
 export function buildReview(m: Model): ReviewItem[] {
   const out: ReviewItem[] = [];
   // Claude's suggestions (from cca mcp) come first: the user asked Claude for them.
@@ -228,8 +236,7 @@ export function buildReview(m: Model): ReviewItem[] {
   const missing = group(m.mems.flatMap((mm) => mm.missing.map((t) => ({ t, mm }))), (x) => x.t);
   for (const [target, refs] of [...missing].sort((a, b) => b[1].length - a[1].length)) {
     const src = refs.map((r) => r.mm);
-    const ranked = m.mems.filter((c) => c.project === src[0].project || c.project === GLOBAL)
-      .map((c) => ({ c, s: similarity(target, c.stem) })).sort((a, b) => b.s - a.s);
+    const ranked = closest(m, dirOf(src[0].path), target);
     const best: Mem | undefined = ranked[0]?.c, score = ranked[0]?.s ?? 0;
     const targets = src.map((s) => ({ path: s.path, label: s.title, mem: s }));
     const others = { label: 'Link to another…', items: ranked.slice(best && score >= 0.5 ? 1 : 0, 8).filter((x) => x.s >= 0.25).map(({ c }) => // only plausible matches

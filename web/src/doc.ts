@@ -1,5 +1,5 @@
 // Splitting skill, agent and memory files into what the forms and History show, and back.
-import { human, KIND, LINK } from './model';
+import { human, KIND, LINK, linkKey } from './model';
 import { esc } from './ui';
 
 /** A file's YAML header: the same rule as scan.SplitHeader (an empty `---\n---` header counts). */
@@ -89,7 +89,7 @@ function inline(text: string, link: (key: string) => string): string {
     let out = '', at = 0;
     const words = (x: string): string => esc(x).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
     for (const l of part.matchAll(LINK)) {
-      out += words(part.slice(at, l.index)) + link(l[1].trim().replace(/\.md$/, ''));
+      out += words(part.slice(at, l.index)) + link(linkKey(l[1]));
       at = (l.index ?? 0) + l[0].length;
     }
     return out + words(part.slice(at));
