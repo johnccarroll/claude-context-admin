@@ -332,8 +332,8 @@ func fingerprint(es []entry.Entry, ps []proposal.Proposal) [32]byte {
 
 // handleVersions lists a readable file's saved versions, newest first, with their text.
 func (s *Server) handleVersions(w http.ResponseWriter, r *http.Request) {
-	p := r.URL.Query().Get("path")
-	if !s.readable(p) {
+	p, ok := s.readablePath(r.URL.Query().Get("path"))
+	if !ok {
 		http.Error(w, "not a readable entry", http.StatusNotFound)
 		return
 	}
@@ -382,8 +382,8 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 // handlePreviewCaps shows what "quiet-caps" would change, without writing.
 func (s *Server) handlePreviewCaps(w http.ResponseWriter, r *http.Request) {
-	p := r.URL.Query().Get("path")
-	if !s.readable(p) {
+	p, ok := s.readablePath(r.URL.Query().Get("path"))
+	if !ok {
 		http.Error(w, "not a readable entry", http.StatusNotFound)
 		return
 	}
@@ -396,15 +396,17 @@ func (s *Server) handlePreviewCaps(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"before": string(b), "after": after, "changes": n})
 }
 
-func (s *Server) readable(p string) bool {
+// readablePath returns the inventory's path for p when p is a readable entry, so handlers read
+// the scanned file, never a path taken from the request.
+func (s *Server) readablePath(p string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, e := range s.state.Entries {
 		if e.Path == p && readable[e.Kind] {
-			return true
+			return e.Path, true
 		}
 	}
-	return false
+	return "", false
 }
 
 // readable kinds are plain markdown; settings, MCP config and plugin manifests are never served.
@@ -428,13 +430,13 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not a readable entry", http.StatusNotFound)
 		return
 	}
-	b, err := scan.ReadText(p)
+	b, err := scan.ReadText(e.Path) // the inventory's path, not the request's
 	if err != nil {
 		http.Error(w, "could not read file", http.StatusNotFound)
 		return
 	}
 	_, body, _ := scan.SplitHeader(string(b)) // the text after the header, split by the same code that writes it back
-	writeJSON(w, map[string]string{"path": p, "content": string(b), "body": body, "modified": e.Modified})
+	writeJSON(w, map[string]string{"path": e.Path, "content": string(b), "body": body, "modified": e.Modified})
 }
 
 type actRequest struct {

@@ -98,14 +98,17 @@ func (e errConfirm) Error() string { return e.msg }
 
 func (e errUser) Error() string { return e.msg }
 
-// entries checks that every path is a scanned entry of one of these kinds.
-func (s *Server) entries(paths []string, kinds ...entry.Kind) error {
+// entries returns the scanned entry path for each of paths, or an error if one isn't of these kinds.
+func (s *Server) entries(paths []string, kinds ...entry.Kind) ([]string, error) {
+	out := make([]string, 0, len(paths))
 	for _, p := range paths {
-		if _, err := s.entry(p, kinds...); err != nil {
-			return err
+		e, err := s.entry(p, kinds...)
+		if err != nil {
+			return nil, err
 		}
+		out = append(out, e.Path)
 	}
-	return nil
+	return out, nil
 }
 
 func (s *Server) entry(path string, kinds ...entry.Kind) (entry.Entry, error) {
@@ -136,23 +139,25 @@ func (s *Server) memoryPaths() []string {
 	return out
 }
 
-func (s *Server) memoryDirOK(dir string) bool {
+// memoryDir returns the scanned memory folder equal to dir, or false. Callers use the returned
+// path, never the one they were given, so a path from a request can't reach the disk.
+func (s *Server) memoryDir(dir string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if dir == s.globalMemoryDir() { // Everywhere, even before its first memory
-		return true
+	if g := s.globalMemoryDir(); dir == g { // Everywhere, even before its first memory
+		return g, true
 	}
 	for _, p := range s.inv.Projects { // a project's first memory goes in its (not yet created) folder
-		if (p.Exists || p.Global) && !p.Worktree && filepath.Join(scan.ConfigDir(s.Home), "projects", p.Dir, "memory") == dir {
-			return true
+		if d := filepath.Join(scan.ConfigDir(s.Home), "projects", p.Dir, "memory"); (p.Exists || p.Global) && !p.Worktree && d == dir {
+			return d, true
 		}
 	}
 	for _, e := range s.inv.Entries {
-		if (e.Kind == entry.Memory || e.Kind == entry.MemoryIndex) && filepath.Dir(e.Path) == dir {
-			return true
+		if d := filepath.Dir(e.Path); (e.Kind == entry.Memory || e.Kind == entry.MemoryIndex) && d == dir {
+			return d, true
 		}
 	}
-	return false
+	return "", false
 }
 
 func (s *Server) globalMemoryDir() string {
@@ -199,15 +204,32 @@ func (s *Server) handleAct(w http.ResponseWriter, r *http.Request) {
 }
 
 // goneMemoryDir reports whether dir is the memory folder of a project whose folder is gone.
-func (s *Server) goneMemoryDir(dir string) bool {
+// goneMemoryDir returns the memory folder of a project whose folder no longer exists, if dir is one.
+func (s *Server) goneMemoryDir(dir string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, p := range s.inv.Projects {
-		if !p.Exists && !p.Global && filepath.Join(scan.ConfigDir(s.Home), "projects", p.Dir, "memory") == dir {
-			return true
+		if d := filepath.Join(scan.ConfigDir(s.Home), "projects", p.Dir, "memory"); !p.Exists && !p.Global && d == dir {
+			return d, true
 		}
 	}
-	return false
+	return "", false
+}
+
+// movedTo returns the folder a gone project's memories may move to: one the scan suggested for it.
+func (s *Server) movedTo(from, to string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, f := range s.state.Report.Findings {
+		if f.Code == "folder-moved" && f.Path == from {
+			for _, c := range f.Candidates {
+				if c == to {
+					return c, true
+				}
+			}
+		}
+	}
+	return "", false
 }
 
 // cliDir is where a scoped `claude` command runs: home for user scope, or a known project
@@ -304,40 +326,43 @@ func (s *Server) do(ctx context.Context, wr *write.Writer, op string, a args) (_
 	md := []entry.Kind{entry.Memory}
 	switch op {
 	case "memory-save":
-		if _, err := s.entry(a.str("path"), md...); err != nil {
+		e, err := s.entry(a.str("path"), md...)
+		if err != nil {
 			return "", nil, err
 		}
-		p, err := wr.SaveMemory(write.MemoryEdit{Path: a.str("path"), Title: a.str("name"), Type: a.str("type"),
+		p, err := wr.SaveMemory(write.MemoryEdit{Path: e.Path, Title: a.str("name"), Type: a.str("type"),
 			Description: a.str("description"), Body: a.str("body"), Seen: a.str("seen")}, s.memoryPaths())
 		if err != nil {
 			return "", nil, err
 		}
-		if p != a.str("path") {
+		if p != e.Path {
 			return "Saved and renamed. Links to it were updated.", nil, nil
 		}
 		return "Saved. Claude uses it next session.", nil, nil
 
 	case "memory-trash":
-		if _, err := s.entry(a.str("path"), md...); err != nil {
+		e, err := s.entry(a.str("path"), md...)
+		if err != nil {
 			return "", nil, err
 		}
-		if err := wr.TrashMemory(a.str("path")); err != nil {
+		if err := wr.TrashMemory(e.Path); err != nil {
 			return "", nil, err
 		}
 		return "Moved to the Trash. Restore it from the Trash if you need it.", nil, nil
 
 	case "memory-promote":
-		if _, err := s.entry(a.str("path"), md...); err != nil {
+		e, err := s.entry(a.str("path"), md...)
+		if err != nil {
 			return "", nil, err
 		}
-		if _, err := wr.Move(a.str("path"), s.globalMemoryDir()); err != nil {
+		if _, err := wr.Move(e.Path, s.globalMemoryDir()); err != nil {
 			return "", nil, err
 		}
 		return "Moved to Everywhere. Every project sees it now.", nil, nil
 
 	case "create-stub", "memory-create":
-		dir := a.str("dir")
-		if !s.memoryDirOK(dir) {
+		dir, ok := s.memoryDir(a.str("dir"))
+		if !ok {
 			return "", nil, errUser{"That memory folder isn't in the current scan."}
 		}
 		title := a.str("title")
@@ -357,8 +382,8 @@ func (s *Server) do(ctx context.Context, wr *write.Writer, op string, a args) (_
 		return "Created " + title + ".", nil, nil
 
 	case "relink", "unlink":
-		paths := a.strs("paths")
-		if err := s.entries(paths, md...); err != nil {
+		paths, err := s.entries(a.strs("paths"), md...)
+		if err != nil {
 			return "", nil, err
 		}
 		from, to := a.str("from"), a.str("to")
@@ -376,23 +401,23 @@ func (s *Server) do(ctx context.Context, wr *write.Writer, op string, a args) (_
 		return fmt.Sprintf("Updated %d link%s.", n, plural(n)), nil, nil
 
 	case "fix-frontmatter":
-		if _, err := s.entry(a.str("path"), md...); err != nil {
+		e, err := s.entry(a.str("path"), md...)
+		if err != nil {
 			return "", nil, err
 		}
-		if err := wr.SetType(a.str("path"), ""); err != nil {
+		if err := wr.SetType(e.Path, ""); err != nil {
 			return "", nil, err
 		}
 		return "Updated 1 memory.", nil, nil
 
 	case "merge-global":
-		keep, drop := a.str("keep"), a.str("drop")
+		pair, err := s.entries([]string{a.str("keep"), a.str("drop")}, md...)
+		if err != nil {
+			return "", nil, err
+		}
+		keep, drop := pair[0], pair[1]
 		if keep == drop {
 			return "", nil, errUser{"Pick two different memories to merge."}
-		}
-		for _, p := range []string{keep, drop} {
-			if _, err := s.entry(p, md...); err != nil {
-				return "", nil, err
-			}
 		}
 		// Trash the duplicate first, so a same-named file can then move into Everywhere.
 		dropSrc, _ := scan.ReadText(drop)
@@ -416,9 +441,13 @@ func (s *Server) do(ctx context.Context, wr *write.Writer, op string, a args) (_
 
 	case "project-relocate":
 		// A renamed or moved repo: carry its memories to the folder Claude Code now keys it by.
-		from, to := a.str("from"), filepath.Clean(a.str("to"))
-		if !s.goneMemoryDir(from) {
+		from, ok := s.goneMemoryDir(a.str("from"))
+		if !ok {
 			return "", nil, errUser{"Only memories whose project folder no longer exists can be moved this way."}
+		}
+		to, ok := s.movedTo(from, filepath.Clean(a.str("to")))
+		if !ok {
+			return "", nil, errUser{"Pick one of the folders it may have moved to."}
 		}
 		if fi, err := os.Stat(to); err != nil || !fi.IsDir() || !filepath.IsAbs(to) {
 			return "", nil, errUser{"Pick a folder that exists."}
@@ -569,18 +598,22 @@ func (s *Server) do(ctx context.Context, wr *write.Writer, op string, a args) (_
 		if err := memLock(e); err != nil {
 			return "", nil, err
 		}
-		if err := wr.Restore(a.str("path"), a.str("version")); err != nil {
+		i := slices.IndexFunc(wr.Versions(e.Path), func(v write.Version) bool { return v.Path == a.str("version") })
+		if i < 0 {
+			return "", nil, errUser{"That version isn't in this file's history."}
+		}
+		if err := wr.Restore(e.Path, wr.Versions(e.Path)[i].Path); err != nil {
 			return "", nil, err
 		}
 		return "Restored that version. Your previous text is kept as a version too.", nil, nil
 
 	case "bulk":
-		paths := a.strs("paths")
-		if err := s.entries(paths, md...); err != nil {
+		paths, err := s.entries(a.strs("paths"), md...)
+		if err != nil {
 			return "", nil, err
 		}
-		dir := a.str("dir")
-		if a.str("action") == "move" && !s.memoryDirOK(dir) {
+		dir, ok := s.memoryDir(a.str("dir"))
+		if a.str("action") == "move" && !ok {
 			return "", nil, errUser{"That project has no memory folder yet."}
 		}
 		for _, p := range paths {
@@ -677,7 +710,7 @@ func (s *Server) do(ctx context.Context, wr *write.Writer, op string, a args) (_
 				continue
 			}
 			k := string(e.Kind) + "\x00" + e.Name
-			groups[k] = append(groups[k], p)
+			groups[k] = append(groups[k], e.Path)
 		}
 		moved := 0
 		for _, g := range groups {
@@ -693,15 +726,19 @@ func (s *Server) do(ctx context.Context, wr *write.Writer, op string, a args) (_
 		g, _ := a["group"].(float64)
 		p, _ := a["pos"].(float64)
 		s.mu.RLock()
-		ok := slices.ContainsFunc(s.inv.Entries, func(h entry.Entry) bool {
+		i := slices.IndexFunc(s.inv.Entries, func(h entry.Entry) bool {
 			return h.Kind == entry.Hook && h.Path == path && h.Name == event && h.Scope != entry.ScopePlugin &&
 				h.Meta["group"] == int(g) && h.Meta["pos"] == int(p)
 		})
+		var hook entry.Entry
+		if i >= 0 {
+			hook = s.inv.Entries[i]
+		}
 		s.mu.RUnlock()
-		if !ok {
+		if i < 0 {
 			return "", nil, errUser{"That hook wasn't found. Reload and try again."}
 		}
-		if err := wr.RemoveHookAt(path, event, int(g), int(p)); err != nil {
+		if err := wr.RemoveHookAt(hook.Path, hook.Name, int(g), int(p)); err != nil {
 			return "", nil, err
 		}
 		return "Removed the hook. Undo it from Activity if you need it back.", nil, nil

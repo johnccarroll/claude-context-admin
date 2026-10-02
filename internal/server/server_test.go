@@ -400,6 +400,10 @@ func TestRelocateMemoriesOfAMovedFolder(t *testing.T) {
 	if code, _ := post(t, c, s, "project-relocate", map[string]any{"from": s.globalMemoryDir(), "to": newPath}); code != http.StatusBadRequest {
 		t.Fatalf("a live project's memories must not be movable this way: %d", code)
 	}
+	// Only a folder the scan suggested: any other existing folder (say, from a request) is refused.
+	if code, _ := post(t, c, s, "project-relocate", map[string]any{"from": from, "to": t.TempDir()}); code != http.StatusBadRequest {
+		t.Fatalf("relocate to an unsuggested folder: %d", code)
+	}
 	if code, msg := post(t, c, s, "project-relocate", map[string]any{"from": from, "to": newPath}); code != http.StatusOK {
 		t.Fatalf("relocate: %d %s", code, msg)
 	}
