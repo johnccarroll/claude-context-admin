@@ -691,3 +691,11 @@ func TestSaveMemoryKeepsTheBlankLineAfterTheHeader(t *testing.T) {
 		t.Fatalf("saved:\n%q", got)
 	}
 }
+
+func TestSafeStem(t *testing.T) {
+	for stem, ok := range map[string]bool{"project_launch": true, "a-b": true, "": false, "..": false, "a/b": false, `a\b`: false, "x..y": false} {
+		if safeStem(stem) != ok {
+			t.Errorf("safeStem(%q) = %v", stem, !ok)
+		}
+	}
+}

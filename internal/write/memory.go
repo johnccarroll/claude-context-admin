@@ -322,6 +322,9 @@ func (w *Writer) SaveMemory(e MemoryEdit, all []string) (string, error) {
 		} else {
 			newStem = name
 		}
+		if strings.Contains(newStem, "..") || !safeStem(newStem) {
+			return "", fmt.Errorf("%q can't be a file name", newStem)
+		}
 		newPath = filepath.Join(dir, newStem+".md")
 		if newPath != e.Path && exists(newPath) {
 			return "", fmt.Errorf("a memory named %s already exists here", newStem)
@@ -381,6 +384,13 @@ func (w *Writer) TrashMemory(path string) error {
 	return err
 }
 
+// safeStem reports whether a file name built from a title stays a plain name in its folder. Slug
+// already allows only a-z, 0-9 and -, so this never refuses a real title; it's the guard that makes
+// that visible where a name becomes a path.
+func safeStem(stem string) bool {
+	return stem != "" && !strings.Contains(stem, "..") && !strings.ContainsAny(stem, `/\`)
+}
+
 // CreateMemory writes a new memory and its index line. It refuses to overwrite.
 func (w *Writer) CreateMemory(dir, title, typ, desc, body string) (string, error) {
 	if err := CheckLock(dir); err != nil {
@@ -394,6 +404,9 @@ func (w *Writer) CreateMemory(dir, title, typ, desc, body string) (string, error
 		return "", fmt.Errorf("the title can't be empty")
 	}
 	stem := typ + "_" + strings.ReplaceAll(name, "-", "_")
+	if strings.Contains(stem, "..") || !safeStem(stem) {
+		return "", fmt.Errorf("%q can't be a file name", stem)
+	}
 	path := filepath.Join(dir, stem+".md")
 	if exists(path) {
 		return "", fmt.Errorf("a memory named %s already exists here", stem)

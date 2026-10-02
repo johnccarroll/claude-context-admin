@@ -277,10 +277,16 @@ func (s *Server) handleState(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleBudget(w http.ResponseWriter, r *http.Request) {
-	p := r.URL.Query().Get("project")
+	q := r.URL.Query().Get("project")
 	s.mu.RLock()
 	inv := s.inv
 	s.mu.RUnlock()
+	p := "" // a scanned project's own path, never the request's: Compute reads that folder's settings
+	for _, pr := range inv.Projects {
+		if pr.Path != "" && pr.Path == q {
+			p = pr.Path
+		}
+	}
 	writeJSON(w, map[string]any{"budget": loads.Compute(inv, p), "shadows": loads.Shadows(inv, p)})
 }
 

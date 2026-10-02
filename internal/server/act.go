@@ -557,6 +557,9 @@ func (s *Server) do(ctx context.Context, wr *write.Writer, op string, a args) (_
 			}
 			root = filepath.Join(project, ".claude")
 		}
+		if strings.Contains(sk.Name, "..") || strings.ContainsAny(sk.Name, `/\`) { // CheckSkill allows a-z, 0-9 and -; this makes it plain here
+			return "", nil, errUser{"A skill name uses lowercase letters, numbers and hyphens."}
+		}
 		path := filepath.Join(root, "skills", sk.Name, "SKILL.md")
 		if !within(path, filepath.Dir(root)) {
 			return "", nil, errUser{"That skills folder links somewhere else, so cca won't write there."}
