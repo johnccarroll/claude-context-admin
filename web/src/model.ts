@@ -133,6 +133,7 @@ export interface ReviewItem {
   finding?: Finding; // instruction-health: confidence, file and evidence lines
   preview?: string; // what a Claude suggestion would change, shown before you accept
   previewBody?: { text: string; dir: string }; // the text it would write (links shown by name)
+  compare?: [Mem, Mem]; // two memories shown side by side, differences marked
   mems?: Mem[]; paths?: string[]; pills?: [string, 'old' | 'new'][];
   primary: Action; secondary: Action; source: string;
   /** Items a group fix applies to, each with a checkbox: actions with a `paths` argument act
@@ -229,7 +230,7 @@ export function buildReview(m: Model): ReviewItem[] {
     out.push({ id: 'moved:' + g.path, tone: 'warn', icon: '↪', title: `${plural(mems.length, 'memory', 'memories')} for a folder that's gone: ${tilde(g.project ?? '')}`,
       body: `Claude Code finds a project's memories by its folder, so these load in no project.${to ? ` It looks like the folder became ${tilde(to)}.` : ' Pick the folder it moved to.'}`,
       mems, primary: to ? { label: `Move to ${tilde(to)}`, op: 'project-relocate', args: { from: g.path, to } } : { label: 'Choose folder…', op: 'relocate-pick', args: { from: g.path } },
-      secondary: to ? { label: 'Somewhere else…', op: 'relocate-pick', args: { from: g.path } } : { label: 'Leave it', op: 'dismiss', args: {} }, source: 'Built-in check', finding: undefined });
+      secondary: to ? { label: 'Somewhere else…', op: 'relocate-pick', args: { from: g.path } } : { label: 'Not now', op: 'later', args: {} }, source: 'Built-in check', finding: undefined });
   }
 
   // Broken links, grouped by target, with the closest existing memory as the suggested fix.
@@ -267,7 +268,7 @@ export function buildReview(m: Model): ReviewItem[] {
       body: `Identical copies live in ${projects}. Keep one copy that every project uses.`,
       targets: copyPaths(m, copies).map((p) => { const e = m.state.entries.find((x) => x.path === p); return { path: p, label: `${e?.kind === 'command' ? '/' : ''}${e?.name} · ${m.projectOf(e?.project ?? '').label}` }; }),
       primary: { label: 'Make global', op: 'make-global', args: { paths: copyPaths(m, copies) } },
-      secondary: { label: 'Keep copies', op: 'dismiss', args: {} }, source: 'Built-in check' });
+      secondary: { label: 'Keep', op: 'dismiss', args: {} }, source: 'Built-in check' });
   }
 
   const dead = f('hook-script-missing');
@@ -286,7 +287,7 @@ export function buildReview(m: Model): ReviewItem[] {
     title: conv.length === 1 ? `Convert ${m.projectOf(conv[0].project ?? '').label}'s CLAUDE.md to AGENTS.md` : `Convert ${conv.length} projects' CLAUDE.md to AGENTS.md`,
     body: 'Claude Code reads AGENTS.md, and so do other agent tools. The content stays the same; the old file goes to the Trash.',
     targets: conv.map((c) => ({ path: c.path, label: m.projectOf(c.project ?? '').label })),
-    primary: { label: 'Convert', op: 'convert-many', args: { paths: [] } }, secondary: { label: 'Keep CLAUDE.md', op: 'dismiss', args: {} }, source: 'Built-in check' });
+    primary: { label: 'Convert', op: 'convert-many', args: { paths: [] } }, secondary: { label: 'Keep', op: 'dismiss', args: {} }, source: 'Built-in check' });
 
   // Instruction health (the mechanical part of /claude-api prompt-audit).
   const file = (p: string): string => p.replace(m.state.home, '~');
@@ -304,7 +305,7 @@ export function buildReview(m: Model): ReviewItem[] {
       primary: askClaude(x), secondary: keep }),
     'missing-path': (x) => ({ tone: 'warn', icon: '¶', title: `${file(x.path)} mentions paths that aren’t on this computer`,
       body: 'They may live on another machine, so nothing is changed automatically. Update them if they moved.',
-      primary: { label: platform.show, op: 'reveal', args: { path: x.path } }, secondary: { label: 'They’re elsewhere', op: 'dismiss', args: {} } }),
+      primary: { label: platform.show, op: 'reveal', args: { path: x.path } }, secondary: { label: 'Keep', op: 'dismiss', args: {} } }),
     'verbose-skill': (x) => ({ tone: 'warn', icon: '¶', title: `${file(x.path).split('/').slice(-2, -1)[0]} skill is ${x.detail} lines`,
       body: 'Its whole text loads every time it runs. Keep what only you know (accounts, quirks, decisions) and drop general explanations Claude already knows.',
       primary: askClaude(x), secondary: keep }),
@@ -319,7 +320,7 @@ export function buildReview(m: Model): ReviewItem[] {
     out.push({ id: 'twice:' + name, tone: 'warn', icon: '⧉', title: `${name} is installed twice`,
       body: `It comes from ${ids.map((i) => i.split('@')[1]).join(' and ')}. Both copies load its skills.`,
       primary: { label: 'Remove the duplicate', op: 'plugin-uninstall', args: { id: ids[ids.length - 1] } },
-      secondary: { label: 'Keep both', op: 'dismiss', args: {} }, source: 'Built-in check' });
+      secondary: { label: 'Keep', op: 'dismiss', args: {} }, source: 'Built-in check' });
   }
 
   for (const p of f('plugin-unused')) {
@@ -327,7 +328,7 @@ export function buildReview(m: Model): ReviewItem[] {
     const cost = Number(e?.meta?.alwaysOnTokens ?? 0);
     out.push({ id: 'unused:' + p.detail, tone: 'warn', icon: '↓', title: `${p.detail} costs ${cost.toLocaleString()} tokens every session and wasn't used in 90 days`,
       body: 'Turning it off frees that context in every project. You can turn it back on any time.',
-      primary: { label: 'Turn off', op: 'plugin-disable', args: { id: e?.meta?.id } }, secondary: { label: 'Keep on', op: 'dismiss', args: {} }, source: 'Usage' });
+      primary: { label: 'Turn off', op: 'plugin-disable', args: { id: e?.meta?.id } }, secondary: { label: 'Keep', op: 'dismiss', args: {} }, source: 'Usage' });
   }
   for (const s of f('mcp-unused')) out.push({ id: 'mcp:' + s.detail, tone: 'warn', icon: '↓', title: `MCP server ${s.detail} wasn't used in 90 days`,
     body: 'Unused servers still add tool definitions Claude can search. Remove it if you no longer need it.',
@@ -339,7 +340,7 @@ export function buildReview(m: Model): ReviewItem[] {
     out.push({ id: 'stale:' + proj, tone: 'del', icon: '⌫', title: `${plural(ms.length, 'memory', 'memories')} in ${m.projectOf(proj).label} ${ms.length === 1 ? 'was' : 'were'} never opened in 90 days`,
       body: 'Claude saw them in the index but never read them. Tick the ones that are no longer true and move them to the Trash (undo brings them back), or open one to check it.',
       targets: ms.map((x) => ({ path: x.path, label: x.title, mem: x })), pick: 'none',
-      primary: { label: 'Move to Trash', op: 'bulk', args: { action: 'trash', paths: [] }, danger: true }, secondary: { label: 'Not now', op: 'dismiss', args: {} }, source: 'Usage' });
+      primary: { label: 'Move to Trash', op: 'bulk', args: { action: 'trash', paths: [] }, danger: true }, secondary: { label: 'Not now', op: 'later', args: {} }, source: 'Usage' });
   }
 
   for (const i of [...f('index-near-cap'), ...f('index-over-cap')]) {
@@ -347,7 +348,7 @@ export function buildReview(m: Model): ReviewItem[] {
     out.push({ id: 'cap:' + i.path, tone: i.code === 'index-over-cap' ? 'del' : 'warn', icon: '!',
       title: `Memory index for ${m.projectOf(i.project ?? GLOBAL).label} is about ${Math.round(((e?.lines ?? 0) / m.state.indexMaxLines) * 100)}% full`,
       body: `Claude reads only the first ${m.state.indexMaxLines} lines of MEMORY.md. Archive or merge memories before new ones become invisible.`, paths: [i.path],
-      primary: { label: 'Show oldest', op: 'filter-project', args: { project: i.project } }, secondary: { label: 'Not now', op: 'dismiss', args: {} }, source: 'Built-in check' });
+      primary: { label: 'Show oldest', op: 'filter-project', args: { project: i.project } }, secondary: { label: 'Not now', op: 'later', args: {} }, source: 'Built-in check' });
   }
 
   // Same memory written in two projects: offer one shared copy.
@@ -355,10 +356,11 @@ export function buildReview(m: Model): ReviewItem[] {
   for (let i = 0; i < m.mems.length; i++) for (let j = i + 1; j < m.mems.length; j++) {
     const a = m.mems[i], b = m.mems[j];
     if (a.project === b.project || a.type !== b.type || seen.has(a.id) || seen.has(b.id) || similarity(a.stem, b.stem) < 0.75) continue;
+    if (similarity(`${a.title} ${a.desc}`, `${b.title} ${b.desc}`) < 0.4) continue; // same file name, different subject
     seen.add(a.id); seen.add(b.id);
-    out.push({ id: `dup:${a.id}|${b.id}`, tone: 'warn', icon: '⇄', title: `“${a.title}” and “${b.title}” look like the same memory`,
-      body: `One is in ${m.projectOf(a.project).label}, the other in ${m.projectOf(b.project).label}. Merging keeps one copy in Everywhere.`, mems: [a, b],
-      primary: { label: 'Merge into Everywhere', op: 'merge-global', args: { keep: a.path, drop: b.path } }, secondary: { label: 'Keep both', op: 'dismiss', args: {} }, source: 'Built-in check' });
+    out.push({ id: `dup:${a.id}|${b.id}`, tone: 'warn', icon: '⇄', title: a.title === b.title ? `“${a.title}” is written twice, in two projects` : `“${a.title}” and “${b.title}” look like the same memory`,
+      body: `One is in ${m.projectOf(a.project).label}, the other in ${m.projectOf(b.project).label}. Compare them; merging keeps the one you choose, in Everywhere, and moves the other to the Trash.`, compare: [a, b],
+      primary: { label: 'Merge into Everywhere…', op: 'merge-pick', args: { a: a.path, b: b.path } }, secondary: { label: 'Keep', op: 'dismiss', args: {} }, source: 'Built-in check' });
   }
   return out;
 }

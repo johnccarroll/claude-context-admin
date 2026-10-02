@@ -121,7 +121,8 @@ export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Me
       tip.hidden = true;
       open(d.m);
       // The editor slides over the right of the map: if it would cover this memory, pan it clear.
-      const free = W - 480, t = zoomTransform(svg.node()!), [sx] = t.apply([d.x!, d.y!]);
+      const dw = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--dw')) || 460; // the editor's width (resizable)
+      const free = W - dw - 20, t = zoomTransform(svg.node()!), [sx] = t.apply([d.x!, d.y!]);
       if (W > 760 && sx > free - 40) svg.transition().duration(300).call(z.translateBy, (free / 2 - sx) / t.k, 0);
     });
 

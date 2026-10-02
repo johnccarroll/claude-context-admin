@@ -448,8 +448,11 @@ function reviewProjects(r: ReviewItem): string[] {
     r.finding?.project, ...(r.paths ?? []).map(of)].filter((x): x is string => !!x);
 }
 
-const dismissedIds = (): Set<string> => new Set(prefs.dismissed ?? []);
+/** Review cards set aside for now (Not now): hidden until Check again or a restart, never saved. */
+const later = new Set<string>();
+const dismissedIds = (): Set<string> => new Set([...(prefs.dismissed ?? []), ...later]);
 function setDismissed(id: string, on: boolean): void {
+  if (!on) later.delete(id);
   prefs.dismissed = [...(prefs.dismissed ?? []).filter((x) => x !== id), ...(on ? [id] : [])];
   void savePrefs(prefs).catch((e: Error) => toast(e.message));
 }
@@ -467,7 +470,7 @@ function renderReview(): void {
   const open = scoped.filter((r) => !d.has(r.id) && (!ui.rcat || rcat(r) === ui.rcat));
   const hidden = scoped.filter((r) => d.has(r.id));
   const total = scoped.length - hidden.length;
-  heading('Review', `${ui.rcat ? `${open.length} of ` : ''}${total} suggestion${total === 1 ? '' : 's'}${hidden.length ? ` · ${hidden.length} dismissed` : ''}`);
+  heading('Review', `${ui.rcat ? `${open.length} of ` : ''}${total} suggestion${total === 1 ? '' : 's'}${hidden.length ? ` · ${hidden.length} set aside` : ''}`);
   const pill = (m: Mem): string => `<span class="pill" data-id="${esc(m.id)}">${esc(m.title)}</span>`;
   const label = (r: ReviewItem, a: Action): string => {
     const sel = picked(r);
@@ -485,21 +488,25 @@ function renderReview(): void {
   const card = (r: ReviewItem, dismissed = false): string => `<div class="card ${dismissed ? 'dim' : ''}" data-r="${esc(r.id)}">
     <div class="chead"><div class="ic ${r.tone}">${esc(r.icon)}</div><h3>${esc(r.title)}</h3><span class="src">${esc(r.source)}</span></div>
     <div class="cbody"><p>${esc(r.body)}</p>${r.finding ? evidenceHTML(r) : ''}${r.preview ? `${r.preview.split('\n').length > 18 ? `<div class="hint">${r.preview.split('\n').length} lines: scroll to read all of it before accepting.</div>` : ''}<div class="diff2 preview">${esc(r.preview).split('\n').map((l) => `<div class="a">${l || ' '}</div>`).join('')}</div>` : ''}${r.previewBody ? `<div class="hint" style="margin-top:8px">The text it would write:</div><div class="rich preview">${richHTML(r.previewBody.text, r.previewBody.dir)}</div>` : ''}${r.pills ? `<div class="pillrow">${r.pills.map(([t, c]) => `<span class="pill ${c}">${esc(t)}</span>`).join('<span style="color:var(--faint)">→</span>')}</div>` : ''}
+    ${r.compare ? `<div class="cmp" data-a="${esc(r.compare[0].id)}" data-b="${esc(r.compare[1].id)}">${r.compare.map((x, i) => `<div class="cmpcol"><div class="cmphead"><span class="dot" style="background:${model.projectOf(x.project).color}"></span><button class="link2" data-open="${esc(x.id)}">${esc(x.title)}</button><span class="hint">${esc(model.projectOf(x.project).label)} · ${i ? 'right' : 'left'}</span></div><div class="hint">${esc(x.desc)}</div><div class="cmpbody"><span class="hint">Loading…</span></div></div>`).join('')}</div>` : ''}
     ${r.targets && r.targets.length > 1 ? targets(r) : r.targets ? `<div class="pillrow">${r.targets.map((t) => t.mem ? pill(t.mem) : `<span class="pill">${esc(t.label)}</span>`).join('')}</div>` : r.mems?.length ? `<div class="pillrow">${r.mems.map(pill).join('')}</div>` : ''}</div>
     <div class="acts">${dismissed ? '<span class="hint">Dismissed</span><span class="spacer"></span><button class="btn sm" data-a="restore">Show again</button>'
       : `<span class="spacer"></span><button class="btn sm ${r.secondary.danger ? 'dng' : ''}" data-a="secondary" ${off(r, r.secondary)}>${esc(label(r, r.secondary))}</button>${r.more?.items.length ? `<button class="btn sm" data-a="more">${esc(r.more.label)} ▾</button>` : ''}<button class="btn pri sm ${r.primary.danger ? 'dng' : ''}" data-a="primary" ${off(r, r.primary)}>${esc(label(r, r.primary))}</button>`}</div></div>`;
   $('#hacts').innerHTML = '<button class="btn" id="recheck" title="Re-read everything now">Check again</button><button class="btn" id="fullaudit" title="Copy a command that runs the official prompt audit in a project">Audit with Claude</button>';
   $('#v-review').innerHTML = `<div class="rv">` +
     (open.length ? open.map((r) => card(r)).join('') : '<div class="done">All caught up. New suggestions appear here as things change.</div>') +
-    (hidden.length ? `<button class="link2" id="showdis" style="margin:14px 0">${ui.showDismissed ? 'Hide' : 'Show'} ${hidden.length} dismissed</button>${ui.showDismissed ? hidden.map((r) => card(r, true)).join('') : ''}` : '') + '</div>';
+    (hidden.length ? `<button class="link2" id="showdis" style="margin:14px 0">${ui.showDismissed ? 'Hide' : 'Show'} ${hidden.length} set aside</button>${ui.showDismissed ? hidden.map((r) => card(r, true)).join('') : ''}` : '') + '</div>';
   $('#fullaudit').onclick = (e) => menu(e.currentTarget as HTMLElement, model.projects.filter((p) => p.key !== 'Global' && p.exists && !p.hidden)
     .map((p) => [p.label, () => void copyText(`cd ${shq(p.path)} && claude '/claude-api prompt-audit'`, 'Copied. Paste it in a terminal: Claude audits that project and proposes fixes.')] as MenuItem));
   $('#recheck').onclick = async () => {
+    later.clear();
     const r = await rescan();
     await refresh();
     toast(r.ok ? 'Checked again: Review is up to date.' : r.message);
   };
   document.getElementById('showdis')?.addEventListener('click', () => { ui.showDismissed = !ui.showDismissed; render(); });
+  fillCompares();
+  $$('#v-review [data-open]').forEach((b) => (b.onclick = () => { const m = model.byId.get(b.dataset.open ?? ''); if (m) openMemory(m); }));
   $$('#v-review .pill[data-id], #v-review .rich .lchip[data-id]').forEach((p) => (p.onclick = () => { const m = model.byId.get(p.dataset.id ?? ''); if (m) openMemory(m); }));
   $$('#v-review .card').forEach((c) => {
     const r = review.find((x) => x.id === c.dataset.r);
@@ -532,7 +539,8 @@ function renderReview(): void {
       const args = sel && Array.isArray(a.args.paths) ? { ...a.args, paths: [...sel] } : a.args;
       if (a.op === 'copy-connect') { void copyText(CONNECT, 'Copied. Paste them in a terminal, then start a new Claude session.'); return; }
       if (a.op === 'connect-later') { try { localStorage.setItem('cca-connect-later', '1'); } catch { /* the card returns next visit */ } c.classList.add('gone'); setTimeout(render, 220); return; }
-      if (a.op === 'dismiss') { setDismissed(r.id, true); c.classList.add('gone'); setTimeout(render, 220); return; }
+      if (a.op === 'dismiss') { setDismissed(r.id, true); c.classList.add('gone'); setTimeout(render, 220); return; } // Keep: saved
+      if (a.op === 'later') { later.add(r.id); c.classList.add('gone'); setTimeout(render, 220); return; } // Not now: until Check again or a restart
       if (a.op === 'open') { const m = model.byId.get(String(a.args.path)); if (m) openMemory(m); return; }
       if (a.op === 'filter-project') { ui.proj = String(a.args.project ?? ''); setView('all'); return; }
       if (a.op === 'view-ins') { setView('ins'); return; }
@@ -544,6 +552,14 @@ function renderReview(): void {
         return;
       }
       if (a.op === 'reveal') { void reveal(String(a.args.path)); return; }
+      if (a.op === 'merge-pick') { // which copy survives, after seeing both
+        const [l, rt] = [model.byId.get(String(a.args.a)), model.byId.get(String(a.args.b))];
+        if (l && rt) menu(c.querySelector<HTMLElement>('[data-a="primary"]') ?? c, [
+          [`Keep “${l.title}” (left)`, () => void run('merge-global', { keep: l.path, drop: rt.path })],
+          [`Keep “${rt.title}” (right)`, () => void run('merge-global', { keep: rt.path, drop: l.path })],
+        ]);
+        return;
+      }
       if (a.op === 'convert-many') { // one conversion per checked project, each with its own Undo in Activity
         const paths = (args.paths as string[]) ?? [];
         if (!paths.length) { toast('Tick at least one project.'); return; }
@@ -563,6 +579,24 @@ function renderReview(): void {
       await run(a.op, args);
     };
   });
+}
+
+/** Fills each duplicate card's two columns with the memories' text, marking the lines that differ. */
+function fillCompares(): void {
+  for (const box of $$('#v-review .cmp')) {
+    const [a, b] = [model.byId.get(box.dataset.a ?? ''), model.byId.get(box.dataset.b ?? '')];
+    if (!a || !b) continue;
+    void Promise.all([loadFile(a.path), loadFile(b.path)]).then(([fa, fb]) => {
+      // Word by word (whitespace kept as its own token), links shown by the memory they open.
+      const words = (m: Mem, text: string): string => text.trim().replace(LINK, (_, k: string) => '“' + (model.resolve(dirOf(m.path), k)?.title ?? human(linkKey(k))) + '”')
+        .split(/(\s+)/).filter(Boolean).map((t) => t.replace(/\n/g, '\u2028')).join('\n');
+      const ops = diffLines(words(a, fa.body), words(b, fb.body));
+      const side = (mine: '-' | '+'): string => ops.filter((o) => o.op === ' ' || o.op === mine)
+        .map((o) => { const t = esc(o.text.replace(/\u2028/g, '\n')); return o.op === ' ' || !o.text.trim() ? t : `<mark>${t}</mark>`; }).join('');
+      const [left, right] = $$('.cmpbody', box);
+      left.innerHTML = side('-'); right.innerHTML = side('+');
+    }).catch(() => { $$('.cmpbody', box).forEach((x) => (x.innerHTML = '<span class="err">Couldn’t read this memory.</span>')); });
+  }
 }
 
 /** Where a gone project's memories can go: folders near the old one, or Everywhere. */
@@ -652,9 +686,15 @@ async function renderWhat(): Promise<void> {
     $('#v-what').innerHTML = emptyHTML('No projects yet', 'Each folder you run Claude Code in loads a different set of instructions, memories and tools. Projects appear here once Claude has run in one.');
     return;
   }
-  if (!proj) { // a session always runs in one folder: ask which
-    $('#v-what').innerHTML = `<div class="tk"><div class="banner"><span class="ic2">i</span><div><b>Pick a project</b>${ui.proj === GLOBAL ? 'Everywhere isn\'t a folder Claude runs in. Choose a project to see what loads there.' : 'Claude loads a different set in every folder. Choose one in the sidebar, or here.'}</div></div><div class="seg" id="wseg">${projects.map((p) => `<button data-p="${esc(p.key)}">${esc(p.label)}</button>`).join('')}</div></div>`;
-    $$('#wseg button').forEach((b) => (b.onclick = () => { ui.proj = b.dataset.p ?? ''; render(); }));
+  if (!proj) { // every project ranked by what it loads; pick one for the breakdown
+    $('#v-what').innerHTML = '<div class="tk"><div class="hint">Adding up each project…</div></div>';
+    const totals = await Promise.all(projects.map(async (p) => ({ p, total: (await loadBudget(p.key)).budget.total })));
+    if (ui.view !== 'what' || ui.proj) return; // moved on while loading
+    totals.sort((a, b) => b.total - a.total);
+    const max = Math.max(1, ...totals.map((x) => x.total));
+    $('#v-what').innerHTML = `<div class="tk"><div class="budget"><p class="hint" style="margin:0 0 6px">Tokens that load at the start of every session in each project, before your first message. Each total includes what loads everywhere: your CLAUDE.md, Everywhere memories, plugins and skills. Pick a project for its breakdown.</p>
+      ${totals.map(({ p, total }) => `<button class="bl wrow" data-p="${esc(p.key)}" style="grid-template-columns:minmax(0,1fr) minmax(80px,2fr) auto auto"><span><span class="dot" style="background:${p.color}"></span>${esc(p.label)}</span><span class="meter"><i style="width:${Math.round((total / max) * 100)}%"></i></span><span class="tok">~${fmtN(total)}</span><span aria-hidden="true">›</span></button>`).join('')}</div></div>`;
+    $$('#v-what .wrow').forEach((b) => (b.onclick = () => { ui.proj = b.dataset.p ?? ''; render(); }));
     return;
   }
   $('#v-what').innerHTML = '<div class="tk"><div class="budget"><div class="bnum"><b>…</b><span>calculating</span></div></div></div>';
@@ -1328,7 +1368,7 @@ function openTool(r: Row): void {
      ${r.tokens !== undefined ? `<div class="bl" style="grid-template-columns:minmax(0,1fr) auto"><span>Cost ${esc(r.tokensLabel ?? '')}</span><span class="tok">~${fmtN(r.tokens)} tokens</span></div>` : ''}</div>
     ${comps ? `<div class="field"><label>What's inside</label><div class="blist">${comps}</div></div>` : ''}
     ${r.tags.some((t) => t.includes('••')) ? `<div class="field"><label>Keys</label><div class="comps">${r.tags.filter((t) => t.includes('••')).map((t) => `<span class="tag mono">${esc(t)}</span>`).join('')}</div><span class="hint">Values are never read by this app or sent to Claude.</span></div>` : ''}
-    ${e?.kind === 'mcp' ? `<div class="field"><label>${e.meta?.url ? 'Connects to' : 'Runs'}</label><code class="cmdline ro">${esc(String(e.meta?.url ?? e.meta?.command ?? '–'))}</code><span class="hint">${esc(e.meta?.url ? 'Over the web (the address without its query, which can hold keys)' : 'A program on your computer (its arguments aren’t shown: they can hold keys)')}${e.path ? ` · defined in ${esc(e.path.replace(model.state.home, '~'))}` : ''}</span></div>` : ''}
+    ${e?.kind === 'mcp' ? `<div class="field"><label>${e.meta?.url ? 'Connects to' : 'Runs'}</label><code class="cmdline ro">${esc(String(e.meta?.url ?? e.meta?.command ?? '–'))}</code><span class="hint">${esc(e.meta?.url ? 'Over the web (the address without its query, which can hold keys)' : 'A program on your computer (its arguments aren’t shown: they can hold keys)')}${e.path ? ` · defined in ${esc(e.path.replace(model.state.home, '~'))}` : ''}</span></div><div class="field"><label>Turning it off or changing it</label><span class="hint">Claude Code has no command for these yet. To pause it, type <span class="mono">/mcp</span> in a Claude session and disable it there. To change it, remove it here and add it again.</span></div>` : ''}
     ${e?.path && (e.kind === 'skill' || e.kind === 'command' || e.kind === 'agent') ? `<div class="field"><label for="t-desc">When Claude uses it</label><input id="t-desc" placeholder="Loading…" readonly><span class="hint" id="t-deschint">Claude reads this to decide when to use it.</span></div>
      <div class="field" id="t-other" hidden><label>Other settings</label><code class="cmdline ro" id="t-otherv"></code><span class="hint">Change these with Edit as file.</span></div>
      <div class="field"><div class="lrow"><label for="t-ins">Instructions</label><button class="btn sm quiet" id="t-raw" hidden>Edit as file</button></div><textarea id="t-ins" placeholder="Loading…" readonly style="min-height:240px"></textarea><textarea id="t-body" class="mono" hidden style="min-height:320px" spellcheck="false" aria-label="The whole file"></textarea></div>` : ''}
