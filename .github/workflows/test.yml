@@ -31,7 +31,8 @@ jobs:
         run: cd web && bun install --frozen-lockfile && bun run build
       - name: Check
         run: |
-          test -z "$(git ls-files -z '*.go' | xargs -0 gofmt -l)" # only the repo's own Go files, not what tools install
+          unformatted="$(git ls-files -z '*.go' | xargs -0 gofmt -l)" # only the repo's own Go files
+          if [ -n "$unformatted" ]; then echo "::error::not gofmt-formatted:"; echo "$unformatted"; echo "$unformatted" | xargs gofmt -d | head -40; exit 1; fi
           go vet ./...
           go test -race ./...
           cd web && bunx tsc --noEmit
