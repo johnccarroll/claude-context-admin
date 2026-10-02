@@ -2,6 +2,7 @@ package write
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -39,14 +40,27 @@ func Slug(title string) string {
 // SetFrontmatter sets name, description and type, keeping every other key and its order.
 // The type stays where the file keeps it (top-level `type` or `metadata.type`): Claude Code has
 // changed this shape without notice before, so cca never migrates it. New files use metadata.type,
-// as current Claude Code writes. Invalid YAML is rebuilt from the lenient read.
+// as current Claude Code writes. A header that isn't valid YAML is repaired by re-quoting its
+// description (the usual cause); one that still isn't is refused, so no key is ever dropped.
 func SetFrontmatter(src []byte, name, desc, typ string) ([]byte, error) {
-	_, _, _, body := scan.Fields(src)
-	var root yaml.Node
+	_, oldDesc, _, body := scan.Fields(src)
 	head, _, _ := scan.SplitHeader(string(src))
 	m := &yaml.Node{Kind: yaml.MappingNode}
-	if head != "" && yaml.Unmarshal([]byte(head), &root) == nil && len(root.Content) == 1 && root.Content[0].Kind == yaml.MappingNode {
-		m = root.Content[0]
+	if head != "" {
+		if m = mapping(head); m == nil {
+			if loc := descLine.FindStringIndex(head); loc != nil {
+				q, _ := json.Marshal(oldDesc) // a JSON string is a valid YAML scalar
+				m = mapping(head[:loc[0]] + "description: " + string(q) + head[loc[1]:])
+			}
+			for i := 0; m != nil && i+1 < len(m.Content); i += 2 {
+				if m.Content[i].Value == "description" {
+					m.Content[i+1].Style = 0 // the encoder picks the quoting, as for any other value
+				}
+			}
+			if m == nil {
+				return nil, errors.New("this memory's header isn't valid YAML, so saving could lose its settings; fix the header by hand first")
+			}
+		}
 	}
 	set := func(parent *yaml.Node, key, val string) {
 		for i := 0; i+1 < len(parent.Content); i += 2 {
@@ -97,6 +111,17 @@ func SetFrontmatter(src []byte, name, desc, typ string) ([]byte, error) {
 		return nil, err
 	}
 	return []byte("---\n" + buf.String() + "---\n" + body), nil // body byte-for-byte: minimal diffs
+}
+
+var descLine = regexp.MustCompile(`(?m)^description:.*$`)
+
+// mapping parses a header into its top-level YAML mapping, or nil when it isn't one.
+func mapping(head string) *yaml.Node {
+	var root yaml.Node
+	if yaml.Unmarshal([]byte(head), &root) != nil || len(root.Content) != 1 || root.Content[0].Kind != yaml.MappingNode {
+		return nil
+	}
+	return root.Content[0]
 }
 
 // ---------- MEMORY.md index ----------
@@ -252,14 +277,15 @@ func (w *Writer) SaveMemory(e MemoryEdit, all []string) (string, error) {
 	if err := CheckUnchanged(e.Path, e.Seen); err != nil {
 		return "", err
 	}
-	if e.Type != "" && !MemTypes[e.Type] {
-		return "", fmt.Errorf("unknown memory type %q", e.Type)
-	}
 	src, err := readCapped(e.Path)
 	if err != nil {
 		return "", err
 	}
 	oldName, _, oldType, _ := scan.Fields(src)
+	// A type Claude Code adds later is kept as it is; only a change must name a known type.
+	if e.Type != "" && !MemTypes[e.Type] && e.Type != oldType {
+		return "", fmt.Errorf("unknown memory type %q", e.Type)
+	}
 	oldStem := strings.TrimSuffix(filepath.Base(e.Path), ".md")
 	name := oldName
 	if e.Title != "" {

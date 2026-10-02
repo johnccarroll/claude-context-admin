@@ -644,3 +644,37 @@ func TestIndexLineMatchesOnlyItsOwnLink(t *testing.T) {
 		t.Fatalf("a mention in another line's description was treated as that line:\n%s", got)
 	}
 }
+
+// A header that isn't valid YAML (a quoted phrase with more text after it) keeps every other key
+// when saved; one that can't be repaired is refused rather than rebuilt.
+func TestSetFrontmatterKeepsKeysOfABrokenHeader(t *testing.T) {
+	src := "---\nname: flags\ndescription: \"Flags\" live in LaunchDarkly\nmodified: 2026-09-30\nmetadata:\n  originSessionId: abc\n  type: reference\n---\nBody\n"
+	out, err := SetFrontmatter([]byte(src), "flags", "Flags live in LaunchDarkly", "reference")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"modified: 2026-09-30", "originSessionId: abc", "description: Flags live in LaunchDarkly", "type: reference", "---\nBody\n"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	if _, err := SetFrontmatter([]byte("---\nname: [unclosed\nmodified: x\n---\nBody\n"), "n", "d", ""); err == nil {
+		t.Error("an unrepairable header must be refused, not rebuilt without its keys")
+	}
+}
+
+// A type Claude Code adds later survives a save; changing to an unknown type is refused.
+func TestSaveMemoryKeepsAnUnknownType(t *testing.T) {
+	w, dir := setup(t)
+	p := filepath.Join(dir, "note.md")
+	os.WriteFile(p, []byte("---\nname: note\ndescription: d\ntype: decision\n---\nBody\n"), 0o644)
+	if _, err := w.SaveMemory(MemoryEdit{Path: p, Type: "decision", Description: "d2", Body: "Body"}, []string{p}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(p); !strings.Contains(string(b), "type: decision") {
+		t.Errorf("type changed:\n%s", b)
+	}
+	if _, err := w.SaveMemory(MemoryEdit{Path: p, Type: "other", Body: "Body"}, []string{p}); err == nil {
+		t.Error("changing to an unknown type must be refused")
+	}
+}
