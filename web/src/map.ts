@@ -12,8 +12,24 @@ interface L { source: N | string; target: N | string; cross: boolean }
 // Redraws (a save, a live refresh) keep the user's zoom and pan while the same memories are shown.
 let view: { sig: string; t: ZoomTransform } | null = null;
 let mark: (id: string | null) => void = () => {};
+// The force layout is the costly part (about 200 ms for 350 memories): a redraw with the same size,
+// memories and links (a live refresh, a save elsewhere) reuses the positions it computed last time.
+let layout: { key: string; pos: Map<string, [number, number]> } | null = null;
 /** Rings the memory open in the editor and lights its connections, without redrawing. */
 export const markMap = (id: string | null): void => mark(id);
+
+/** Places nodes: each project's cluster pulled to its anchor, links holding related memories close. */
+function layoutNodes(ns: N[], ls: L[], anchor: Map<string, [number, number]>): void {
+  const sim = forceSimulation<N>(ns)
+    .force('link', forceLink<N, L & { source: N; target: N }>(ls as never).id((d) => d.m.id)
+      .distance((l) => (l.cross ? 120 : 22)).strength((l) => (l.cross ? 0.02 : 0.25)))
+    .force('charge', forceManyBody().strength(-14))
+    .force('x', forceX<N>((d) => anchor.get(d.m.project)![0]).strength(0.14))
+    .force('y', forceY<N>((d) => anchor.get(d.m.project)![1]).strength(0.14))
+    .force('collide', forceCollide<N>((d) => d.r + 2.2))
+    .stop();
+  for (let i = 0; i < 320; i++) sim.tick();
+}
 
 export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Mem) => void): void {
   const host = $('#map');
@@ -38,15 +54,14 @@ export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Me
     const a = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(1, ring.length);
     anchor.set(k, [W / 2 + Math.cos(a) * W * 0.32, H / 2 + Math.sin(a) * H * 0.33]);
   });
-  const sim = forceSimulation<N>(ns)
-    .force('link', forceLink<N, L & { source: N; target: N }>(ls as never).id((d) => d.m.id)
-      .distance((l) => (l.cross ? 120 : 22)).strength((l) => (l.cross ? 0.02 : 0.25)))
-    .force('charge', forceManyBody().strength(-14))
-    .force('x', forceX<N>((d) => anchor.get(d.m.project)![0]).strength(0.14))
-    .force('y', forceY<N>((d) => anchor.get(d.m.project)![1]).strength(0.14))
-    .force('collide', forceCollide<N>((d) => d.r + 2.2))
-    .stop();
-  for (let i = 0; i < 320; i++) sim.tick();
+  const key = `${W}x${H}|${ns.map((n) => n.m.id).join(',')}|${ls.map((l) => `${l.source}>${l.target}`).join(',')}`;
+  if (layout?.key === key) {
+    for (const n of ns) [n.x, n.y] = layout.pos.get(n.m.id)!;
+    for (const l of ls) { l.source = byId.get(l.source as string)!; l.target = byId.get(l.target as string)!; }
+  } else {
+    layoutNodes(ns, ls, anchor);
+    layout = { key, pos: new Map(ns.map((n) => [n.m.id, [n.x!, n.y!]])) };
+  }
 
   const g = svg.append('g');
   const edge = (l: L): [N, N] => [l.source as N, l.target as N];

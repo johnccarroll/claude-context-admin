@@ -44,7 +44,7 @@ export function openPalette(model: Model, h: Hooks): void {
     // MEMORY.md only repeats memories' titles and summaries, which already match above.
     const files = hits.filter((x) => x.kind !== 'memory' && x.kind !== 'memory-index');
     // Links in a snippet read as the memory they open, as in the editor.
-    const named = (text: string, dir: string): string => text.replace(LINK, (_, k: string) => '“' + (model.resolve(dir, k)?.title ?? human(linkKey(k))) + '”');
+    const named = (text: string, dir: string): string => text.replace(LINK, (_, k: string) => '“' + (model.resolve(dir, k)?.title ?? human(linkKey(k))) + '”').replace(/\*\*|`/g, ''); // plain words, like the editor's read view
     const toolkit = [...model.entries('plugin'), ...model.entries('mcp'), ...model.entries('agent').filter((e) => e.scope !== 'plugin')]
       .filter((e) => w && has(e.name + ' ' + (e.description ?? ''))).slice(0, 5);
     const projects = model.projects.filter((p) => w && has(p.label)).slice(0, 4);

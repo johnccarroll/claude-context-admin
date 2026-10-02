@@ -74,7 +74,7 @@ func TestSaveMemoryRenamesFileLinksAndIndex(t *testing.T) {
 	if got := read(t, newPath); !strings.Contains(got, "name: web-ios-parity") || !strings.Contains(got, "new body") {
 		t.Fatalf("content:\n%s", got)
 	}
-	if got := read(t, b); got != "---\nname: other\n---\nSee [[project_web_ios_parity]] and [[project_web_ios_parity|the parity note]].\n" {
+	if got := read(t, b); got != "---\nname: other\n---\nSee [[web-ios-parity]] and [[web-ios-parity|the parity note]].\n" {
 		t.Fatalf("links:\n%s", got)
 	}
 	idx := read(t, filepath.Join(dir, "MEMORY.md"))
@@ -109,7 +109,7 @@ func TestSaveWithoutTitleKeepsNameAndLinks(t *testing.T) {
 	if _, err := w.SaveMemory(MemoryEdit{Path: a, Title: "Alert on failure only", Description: "new", Body: "body"}, []string{a, b}); err != nil {
 		t.Fatal(err)
 	}
-	if read(t, b) != "see [[feedback_alert_on_failure_only]]\n" {
+	if read(t, b) != "see [[alert-on-failure-only]]\n" { // the new name, as the [[ picker writes it
 		t.Fatalf("link not rewritten after a name change: %q", read(t, b))
 	}
 }
@@ -676,5 +676,18 @@ func TestSaveMemoryKeepsAnUnknownType(t *testing.T) {
 	}
 	if _, err := w.SaveMemory(MemoryEdit{Path: p, Type: "other", Body: "Body"}, []string{p}); err == nil {
 		t.Error("changing to an unknown type must be refused")
+	}
+}
+
+// Claude Code leaves a blank line after the header; saving only the summary keeps the body as is.
+func TestSaveMemoryKeepsTheBlankLineAfterTheHeader(t *testing.T) {
+	w, dir := setup(t)
+	p := filepath.Join(dir, "feedback_x.md")
+	put(t, p, "---\nname: x\ndescription: old\nmetadata:\n  type: feedback\n---\n\nThe rule.\n")
+	if _, err := w.SaveMemory(MemoryEdit{Path: p, Description: "new", Body: "The rule."}, []string{p}); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, p); !strings.HasSuffix(got, "---\n\nThe rule.\n") || !strings.Contains(got, "description: new") {
+		t.Fatalf("saved:\n%q", got)
 	}
 }

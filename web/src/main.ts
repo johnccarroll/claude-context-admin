@@ -1542,7 +1542,12 @@ function boot(): void {
       document.querySelector<HTMLButtonElement>('#dsave, #tsave, #isave, #ncreate, #a-install, #s-create, #capply, #drawer [data-add]')?.click();
     }
   });
-  addEventListener('resize', () => { setDrawerWidth(prefs.drawerWidth ?? DW); if (ui.view === 'map') VIEW_RENDER.map?.(); });
+  let resized = 0;
+  addEventListener('resize', () => {
+    setDrawerWidth(prefs.drawerWidth ?? DW);
+    clearTimeout(resized); // the map lays itself out again once the window stops changing size
+    resized = window.setTimeout(() => { if (ui.view === 'map') VIEW_RENDER.map?.(); }, 150);
+  });
   wireGrip();
   theme();
   void refresh().then(applyURL);

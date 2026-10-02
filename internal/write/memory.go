@@ -297,7 +297,10 @@ func (w *Writer) SaveMemory(e MemoryEdit, all []string) (string, error) {
 	if e.Type == "" {
 		e.Type = oldType
 	}
-	body := strings.TrimLeft(e.Body, "\n")
+	// Keep the file's own spacing after its header (Claude Code writes a blank line), so saving
+	// only the summary doesn't show as a body change.
+	_, oldBody, _ := scan.SplitHeader(string(src))
+	body := oldBody[:len(oldBody)-len(strings.TrimLeft(oldBody, "\n"))] + strings.TrimLeft(e.Body, "\n")
 	if !strings.HasSuffix(body, "\n") {
 		body += "\n"
 	}
@@ -348,7 +351,8 @@ func (w *Writer) SaveMemory(e MemoryEdit, all []string) (string, error) {
 		if newStem != oldStem {
 			from = append(from, oldStem)
 		}
-		if _, err := w.Relink(others, from, newStem); err != nil {
+		// The new name, the form Claude Code and the [[ picker write (the file name resolves too).
+		if _, err := w.Relink(others, slices.DeleteFunc(from, func(f string) bool { return f == name }), name); err != nil {
 			return newPath, err
 		}
 	}

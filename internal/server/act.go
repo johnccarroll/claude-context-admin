@@ -831,6 +831,7 @@ var titles = map[string]string{
 	"hook-remove": "Removed a hook", "plugin-enable": "Turned on a plugin", "plugin-disable": "Turned off a plugin",
 	"plugin-uninstall": "Uninstalled a plugin", "mcp-remove": "Removed an MCP server", "convert-to-agents": "Converted CLAUDE.md to AGENTS.md",
 	"restore": "Restored an earlier version", "project-relocate": "Moved memories to a project's new folder",
+	"mcp-add": "Added an MCP server", "plugin-add": "Installed a plugin", "skill-create": "Created a skill",
 }
 
 func titleFor(op string, a args) string {
@@ -853,6 +854,9 @@ func detailFor(cs []write.Change) string {
 	var names []string
 	for _, c := range cs {
 		n := strings.TrimSuffix(filepath.Base(c.Path), ".md")
+		if n == strings.ToUpper(n) && n != "MEMORY" { // CLAUDE, AGENTS, SKILL: name the folder too
+			n = filepath.Base(filepath.Dir(c.Path)) + "/" + filepath.Base(c.Path)
+		}
 		if n == "MEMORY" || slices.Contains(names, n) {
 			continue
 		}
