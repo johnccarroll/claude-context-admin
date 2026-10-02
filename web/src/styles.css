@@ -3,7 +3,7 @@
 @font-face{font-family:"Geist Mono Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2") format("woff2-variations")}
 /* Layout: frosted window over a neutral ground (dark-first, light mirror); purple is reserved for accents only. */
 :root{--gutter:24px;
-  --bg:#09090b; --glow1:#26262c; --glow2:#1a1a1f; --glow3:#202026;
+  --bg:#09090b;   
   --glass:rgba(24,24,28,.55); --glass-2:rgba(16,16,19,.5); --glass-strong:rgba(30,30,35,.82); --rim:rgba(255,255,255,.07);
   --surface:#151518; --sunk:rgba(255,255,255,.04); --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.13);
   --fg:#ededf0; --muted:#a1a1aa; --faint:#66666f;
@@ -18,7 +18,7 @@
   color-scheme:dark;
 }
 @media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
-  --bg:#f3f3f6; --glow1:#e2e2ea; --glow2:#ffffff; --glow3:#e9e9ef;
+  --bg:#f3f3f6;   
   --glass:rgba(255,255,255,.6); --glass-2:rgba(255,255,255,.42); --glass-strong:rgba(255,255,255,.86); --rim:rgba(255,255,255,.85);
   --surface:#ffffff; --sunk:rgba(15,15,30,.035); --line:rgba(15,15,30,.08); --line-2:rgba(15,15,30,.15);
   --fg:#17171c; --muted:#5d5d69; --faint:#9696a2;
@@ -27,7 +27,7 @@
   --c1:#b86e3a; --c2:#2f8a7e; --c3:#a8557a; --c4:#4f6fae; --c5:#7d66b8; --c6:#6f8136; --c7:#8a7356;
   --shadow:0 1px 1px rgba(15,15,30,.04),0 24px 60px -28px rgba(15,15,30,.28); --pri-lift:inset 0 1px 0 rgba(255,255,255,.22),0 4px 14px -6px var(--accent); color-scheme:light}}
 :root[data-theme="light"]{
-  --bg:#f3f3f6; --glow1:#e2e2ea; --glow2:#ffffff; --glow3:#e9e9ef;
+  --bg:#f3f3f6;   
   --glass:rgba(255,255,255,.6); --glass-2:rgba(255,255,255,.42); --glass-strong:rgba(255,255,255,.86); --rim:rgba(255,255,255,.85);
   --surface:#ffffff; --sunk:rgba(15,15,30,.035); --line:rgba(15,15,30,.08); --line-2:rgba(15,15,30,.15);
   --fg:#17171c; --muted:#5d5d69; --faint:#9696a2;
@@ -40,7 +40,6 @@
 .tk>*,.tgroup>*,.trow>div{min-width:0}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--f-ui);padding:clamp(0px,3vh,24px) clamp(0px,2vw,16px);height:100%;overflow:hidden;position:relative;-webkit-font-smoothing:antialiased}
-body::before{content:"";position:fixed;inset:-10%;z-index:-1;pointer-events:none;background:radial-gradient(40% 45% at 18% 20%,var(--glow1),transparent 70%),radial-gradient(35% 40% at 85% 15%,var(--glow2),transparent 70%),radial-gradient(45% 50% at 70% 90%,var(--glow3),transparent 70%);filter:blur(30px);opacity:1}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .app{max-width:1280px;margin:0 auto;height:100%;min-height:0;display:grid;grid-template-columns:276px minmax(0,1fr);background:var(--glass);-webkit-backdrop-filter:blur(28px) saturate(170%);backdrop-filter:blur(28px) saturate(170%);border:1px solid var(--rim);border-radius:22px;overflow:hidden;box-shadow:var(--shadow),inset 0 1px 0 var(--rim);position:relative}
