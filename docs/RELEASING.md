@@ -50,8 +50,8 @@ repositories; the macOS jobs never run from a private copy.
      Export as .p12), `MACOS_CERT_PASSWORD`, `NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`
      (an App Store Connect team API key with the **Developer** role: it can notarize and nothing
      else).
-   - `publish`: `TAP_TOKEN`, a fine-grained token with Contents read/write on
-     `johnccarroll/homebrew-tap` only, with an expiry (renew it before it lapses).
+   - `publish`: `TAP_DEPLOY_KEY`, an SSH deploy key with write access to `homebrew-tap` and
+     nothing else (`scripts/repo-setup.sh` shows the three commands).
 
    Delete the exported `.p12` afterwards (`rm -P`).
 5. **Screenshots** when the UI changes: `scripts/build-mac-app.sh 0.0.0-dev && scripts/screenshots.sh`
@@ -69,7 +69,7 @@ release's.
   history lists every submission.
 - **Notary key:** revoke it in App Store Connect → Users and Access → Integrations; make a new
   Developer-role key.
-- **Tap token:** revoke it on GitHub; check the tap's history.
+- **Tap deploy key:** delete it in the tap's Settings → Deploy keys; check the tap's history.
 
 ## Building by hand
 

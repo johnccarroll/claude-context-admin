@@ -114,5 +114,7 @@ p8="${p8/#\~/$HOME}"
 secret release NOTARY_KEY_P8 "$p8"
 secret release NOTARY_KEY_ID
 secret release NOTARY_ISSUER_ID
-secret publish TAP_TOKEN
+# publish: TAP_DEPLOY_KEY. Make a key with write access to the tap only:
+#   ssh-keygen -t ed25519 -N "" -f k && gh repo deploy-key add k.pub --repo "$TAP" --allow-write
+#   gh secret set TAP_DEPLOY_KEY --env publish --repo "$REPO" < k && rm -P k k.pub
 echo "Secrets set. Delete the .p12 and .p8: rm -P '$p12' '$p8'"

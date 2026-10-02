@@ -15,7 +15,7 @@ name: release
 # Environment secrets (docs/RELEASING.md sets them up; both environments are limited to v* tags):
 #   release  MACOS_CERT_P12 (base64 .p12), MACOS_CERT_PASSWORD, NOTARY_KEY_P8 (base64 .p8),
 #            NOTARY_KEY_ID, NOTARY_ISSUER_ID
-#   publish  TAP_TOKEN (fine-grained: Contents read/write on homebrew-tap only)
+#   publish  TAP_DEPLOY_KEY (an SSH deploy key with write access to homebrew-tap only)
 # npm needs no token: each package trusts this workflow and the "publish" environment (npm
 # trusted publishing, OIDC), which also adds provenance.
 on:
@@ -239,7 +239,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: publish # TAP_TOKEN lives only here; npm trusts this environment
+    environment: publish # TAP_DEPLOY_KEY lives only here; npm trusts this environment
     permissions:
       contents: write # the GitHub Release
       id-token: write # npm trusted publishing and build attestations
@@ -319,12 +319,15 @@ jobs:
 
       - name: Homebrew cask
         env:
-          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
         run: |
           scripts/cask.sh "$VERSION" "release/ClaudeContextAdmin-$VERSION-macos.zip" > claude-context-admin.rb
-          # The token goes in a header for these two commands only, never into a URL or .git/config.
-          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TAP_TOKEN" | base64 | tr -d '\n')"
-          git -c http.extraheader="$auth" clone --depth 1 https://github.com/johnccarroll/homebrew-tap.git tap
+          # A deploy key that can write to the tap and nothing else; GitHub's host key is pinned.
+          umask 077
+          printf '%s\n' "$TAP_DEPLOY_KEY" > "$RUNNER_TEMP/tap_key"
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "$RUNNER_TEMP/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
+          git clone --depth 1 git@github.com:johnccarroll/homebrew-tap.git tap
           mkdir -p tap/Casks
           cp claude-context-admin.rb tap/Casks/
           cd tap
@@ -333,4 +336,5 @@ jobs:
           git add Casks/claude-context-admin.rb
           git diff --cached --quiet && { echo "cask unchanged"; exit 0; }
           git commit -m "claude-context-admin $VERSION"
-          git -c http.extraheader="$auth" push
+          git push
+          rm -f "$RUNNER_TEMP/tap_key"
