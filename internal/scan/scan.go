@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/johnccarroll/claude-context-admin/internal/entry"
 )
@@ -292,7 +293,24 @@ func Snippet(text, q string) string {
 		}
 	}
 	start, end := max(0, i-80), min(len(r), i+len([]rune(q))+120)
-	return strings.Join(strings.Fields(string(r[start:end])), " ")
+	// Cut on word boundaries, so a snippet never starts or ends mid-word, and say where it was cut.
+	pre, post := "", ""
+	if start > 0 {
+		for start < i && !unicode.IsSpace(r[start-1]) {
+			start++
+		}
+		pre = "… "
+	}
+	if end < len(r) {
+		for e := end; e > i+len([]rune(q)); e-- {
+			if unicode.IsSpace(r[e]) {
+				end = e
+				break
+			}
+		}
+		post = " …"
+	}
+	return pre + strings.Join(strings.Fields(string(r[start:end])), " ") + post
 }
 
 func (inv *Inventory) warn(msg string) { inv.Warnings = append(inv.Warnings, msg) }

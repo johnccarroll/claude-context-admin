@@ -338,3 +338,16 @@ func TestWikilinksSharedCases(t *testing.T) {
 		}
 	}
 }
+
+func TestSnippetCutsOnWords(t *testing.T) {
+	text := strings.Repeat("alpha ", 30) + "needle " + strings.Repeat("omega ", 40)
+	got := Snippet(text, "needle")
+	if !strings.HasPrefix(got, "… alpha") || !strings.HasSuffix(got, "omega …") || !strings.Contains(got, "needle") {
+		t.Fatalf("snippet: %q", got)
+	}
+	for _, w := range strings.Fields(strings.Trim(got, "… ")) {
+		if w != "alpha" && w != "needle" && w != "omega" {
+			t.Fatalf("cut mid-word: %q in %q", w, got)
+		}
+	}
+}
