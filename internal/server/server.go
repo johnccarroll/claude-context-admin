@@ -53,6 +53,10 @@ type State struct {
 	Health    []doctor.Check      `json:"health"`    // doctor checks that aren't ok: features degraded on this Claude Code version
 	ReadOnly  bool                `json:"readOnly"`
 	OS        string              `json:"os"` // runtime.GOOS, for words like "Finder"
+	// Claude Code facts the UI shows, owned here so they change in one place.
+	GlobalMemoryDir string `json:"globalMemoryDir"` // where Everywhere memories go
+	IndexMaxLines   int    `json:"indexMaxLines"`   // how much of MEMORY.md loads
+	IndexMaxBytes   int    `json:"indexMaxBytes"`
 }
 
 // Server holds the latest state and the open live-reload streams.
@@ -171,7 +175,8 @@ func (s *Server) Refresh(ctx context.Context, withCosts bool) {
 	s.mu.RLock()
 	health := s.health
 	s.mu.RUnlock()
-	st := &State{Home: s.Home, Projects: inv.Projects, Entries: inv.Entries, Usage: u, Proposals: pending, Health: health,
+	st := &State{Home: s.Home, Projects: inv.Projects, Entries: inv.Entries, GlobalMemoryDir: inv.GlobalMemoryDir,
+		IndexMaxLines: scan.IndexMaxLines, IndexMaxBytes: scan.IndexMaxBytes, Usage: u, Proposals: pending, Health: health,
 		Report: audit.Run(inv, u, now), ReadOnly: s.ReadOnly, OS: runtime.GOOS}
 	sum := fingerprint(inv.Entries, pending)
 	s.mu.Lock()
@@ -428,7 +433,8 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not read file", http.StatusNotFound)
 		return
 	}
-	writeJSON(w, map[string]string{"path": p, "content": string(b), "modified": e.Modified})
+	_, body, _ := scan.SplitHeader(string(b)) // the text after the header, split by the same code that writes it back
+	writeJSON(w, map[string]string{"path": p, "content": string(b), "body": body, "modified": e.Modified})
 }
 
 type actRequest struct {

@@ -52,7 +52,7 @@ export function buildModel(state: State, prefs: Prefs = { projects: {}, order: [
     const stem = String(e.meta?.stem ?? e.name);
     const u = usage['file:' + (e.path ?? '')];
     return {
-      id: e.path ?? stem, path: e.path ?? '', project: keyOf(e), stem, slug: e.name || stem, type: e.type || stem.split('_')[0] || 'reference',
+      id: e.path ?? stem, path: e.path ?? '', project: keyOf(e), stem, slug: e.name || stem, type: e.type || (KIND[stem.split('_')[0]] ? stem.split('_')[0] : ''), // never guess beyond the known kinds
       title: typeof e.meta?.title === 'string' ? e.meta.title : human(e.name.includes('-') || e.name.includes('_') ? e.name : stem), desc: e.description ?? '',
       modified: day(e.modified), mtime: e.modified ?? '',
       badYaml: (e.issues ?? []).includes('bad-frontmatter'), links: e.links ?? [], out: [], inn: [], missing: [],
@@ -338,8 +338,8 @@ export function buildReview(m: Model): ReviewItem[] {
   for (const i of [...f('index-near-cap'), ...f('index-over-cap')]) {
     const e = m.state.entries.find((x) => x.path === i.path);
     out.push({ id: 'cap:' + i.path, tone: i.code === 'index-over-cap' ? 'del' : 'warn', icon: '!',
-      title: `Memory index for ${m.projectOf(i.project ?? GLOBAL).label} is about ${Math.round(((e?.lines ?? 0) / 200) * 100)}% full`,
-      body: 'Claude reads only the first 200 lines of MEMORY.md. Archive or merge memories before new ones become invisible.', paths: [i.path],
+      title: `Memory index for ${m.projectOf(i.project ?? GLOBAL).label} is about ${Math.round(((e?.lines ?? 0) / m.state.indexMaxLines) * 100)}% full`,
+      body: `Claude reads only the first ${m.state.indexMaxLines} lines of MEMORY.md. Archive or merge memories before new ones become invisible.`, paths: [i.path],
       primary: { label: 'Show oldest', op: 'filter-project', args: { project: i.project } }, secondary: { label: 'Not now', op: 'dismiss', args: {} }, source: 'Built-in check' });
   }
 

@@ -2,15 +2,19 @@
 import { human, KIND, LINK } from './model';
 import { esc } from './ui';
 
+/** A file's YAML header: the same rule as scan.SplitHeader (an empty `---\n---` header counts). */
+const HEADER = /^---\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/;
+
 /** A file's header in plain words (title, summary, kind) and its body, for History. Display only:
  *  any other header change is reported, not hidden. */
 export function splitDoc(text: string): { fields: [string, string][]; rest: string; body: string } {
-  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+  const m = HEADER.exec(text);
   if (!m) return { fields: [], rest: '', body: text };
-  const get = (k: string): string => (new RegExp(`^\\s*${k}:[ \\t]*(.*)$`, 'm').exec(m[1])?.[1] ?? '').trim().replace(/^(["'])(.*)\1$/, '$2');
+  const h = m[1] ?? '';
+  const get = (k: string): string => (new RegExp(`^\\s*${k}:[ \\t]*(.*)$`, 'm').exec(h)?.[1] ?? '').trim().replace(/^(["'])(.*)\1$/, '$2');
   const type = get('type');
   const fields: [string, string][] = [['Title', get('name') && human(get('name'))], ['Summary', get('description')], ['Kind', KIND[type] ?? type]];
-  const rest = m[1].split('\n').filter((l) => !/^\s*(name|description|type|metadata):/.test(l)).join('\n');
+  const rest = h.split('\n').filter((l) => !/^\s*(name|description|type|metadata):/.test(l)).join('\n');
   return { fields: fields.filter(([, v]) => v), rest, body: text.slice(m[0].length) };
 }
 
@@ -19,9 +23,9 @@ export function splitDoc(text: string): { fields: [string, string][]; rest: stri
  *  settings, and the instructions. composeTool puts it back, changing only what was edited. */
 export interface ToolDoc { src: string; lines: string[] | null; di: number; desc: string | null; others: string[]; body: string }
 export function splitTool(text: string): ToolDoc {
-  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+  const m = HEADER.exec(text);
   if (!m) return { src: text, lines: null, di: -2, desc: null, others: [], body: text };
-  const lines = m[1].split(/\r?\n/);
+  const lines = (m[1] ?? '').split(/\r?\n/);
   const i = lines.findIndex((l) => /^description:/.test(l));
   const desc = i >= 0 && !/^\s+\S/.test(lines[i + 1] ?? '') ? scalar(lines[i].replace(/^description:\s*/, '').trim()) : null;
   const plain = desc !== null;

@@ -46,14 +46,18 @@ type Project struct {
 	Worktree bool   `json:"worktree"`
 	Global   bool   `json:"global"` // the home directory itself
 	Repo     bool   `json:"repo"`   // a git repository root
+	// MemoryDir is where Claude Code keeps this project's memories, so the UI never rebuilds the path.
+	MemoryDir string `json:"memoryDir"`
 }
 
 // Inventory is the full scan result.
 type Inventory struct {
-	Home     string        `json:"home"`
-	Projects []Project     `json:"projects"`
-	Entries  []entry.Entry `json:"entries"`
-	Warnings []string      `json:"warnings,omitempty"`
+	Home     string    `json:"home"`
+	Projects []Project `json:"projects"`
+	// GlobalMemoryDir is where memories that load everywhere go, even before the first one exists.
+	GlobalMemoryDir string        `json:"globalMemoryDir"`
+	Entries         []entry.Entry `json:"entries"`
+	Warnings        []string      `json:"warnings,omitempty"`
 }
 
 func (s *Scanner) claudeDir() string { return ConfigDir(s.Home) }
@@ -62,6 +66,7 @@ func (s *Scanner) claudeDir() string { return ConfigDir(s.Home) }
 func (s *Scanner) Scan(ctx context.Context) *Inventory {
 	inv := &Inventory{Home: s.Home, Entries: []entry.Entry{}} // [] not null in JSON, even for a new user
 	inv.Projects = append([]Project{}, s.projects()...)
+	inv.GlobalMemoryDir = filepath.Join(s.claudeDir(), "projects", Encode(s.Home), "memory")
 	s.memories(inv)
 	s.instructions(inv)
 	s.toolkit(inv)
@@ -95,7 +100,7 @@ func (s *Scanner) projects() []Project {
 		if !de.IsDir() {
 			continue
 		}
-		p := Project{Dir: de.Name()}
+		p := Project{Dir: de.Name(), MemoryDir: filepath.Join(root, de.Name(), "memory")}
 		p.Path = s.resolveDir(filepath.Join(root, de.Name()), de.Name())
 		if p.Path != "" {
 			_, err := os.Stat(p.Path)

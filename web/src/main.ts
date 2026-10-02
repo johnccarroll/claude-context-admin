@@ -661,7 +661,7 @@ async function renderWhat(): Promise<void> {
   if (ui.view !== 'what' || ui.proj !== proj) return; // the scope changed while loading
   const colors = ['var(--c4)', 'var(--c5)', 'var(--c2)', 'var(--c1)', 'var(--c6)', 'var(--c7)'];
   const total = Math.max(1, budget.total);
-  const pct = Math.round((budget.indexLines / 200) * 100);
+  const pct = Math.round((budget.indexLines / model.state.indexMaxLines) * 100);
   const label = model.projectOf(proj).label;
   const home = model.state.home;
   const entryAt = (path: string): Entry | undefined => model.state.entries.find((e) => e.path === path);
@@ -676,7 +676,7 @@ async function renderWhat(): Promise<void> {
   const html = `<div class="budget"><div class="bnum"><b>~${fmtN(budget.total)}</b><span>tokens load at the start of every ${esc(label)} session, before your first message</span></div>
     <div class="bar">${budget.sources.map((s, i) => (s.tokens ? `<i style="width:${(s.tokens / total) * 100}%;background:${colors[i]}" title="${esc(s.label)}"></i>` : '')).join('')}</div>
     <div class="blist">${budget.sources.map(row).join('')}</div></div>
-   ${pct > 70 ? `<div class="banner warn"><span class="ic2">!</span><div style="flex:1"><b>Memory index is about ${pct}% full</b>Claude loads only about the first 200 lines (25 KB) of MEMORY.md; anything past that is invisible until it is trimmed.<div class="meter warn" style="margin-top:8px"><i style="width:${Math.min(100, pct)}%"></i></div></div>${index && entryAt(index) ? '<button class="btn sm" id="openidx">Open MEMORY.md</button>' : ''}</div>` : ''}
+   ${pct > 70 ? `<div class="banner warn"><span class="ic2">!</span><div style="flex:1"><b>Memory index is about ${pct}% full</b>Claude loads only about the first ${model.state.indexMaxLines} lines (${Math.round(model.state.indexMaxBytes / 1024)} KB) of MEMORY.md; anything past that is invisible until it is trimmed.<div class="meter warn" style="margin-top:8px"><i style="width:${Math.min(100, pct)}%"></i></div></div>${index && entryAt(index) ? '<button class="btn sm" id="openidx">Open MEMORY.md</button>' : ''}</div>` : ''}
    ${shadows.length ? `<div class="banner"><span class="ic2">⇅</span><div><b>${shadows.length} name${shadows.length > 1 ? 's are' : ' is'} defined more than once</b>${shadows.map((s) => `${esc(s.kind)} <b style="display:inline">${esc(s.name)}</b>: the <button class="link2" data-path="${esc(s.winner.path ?? '')}">${esc(s.winner.scope)} one</button> wins over ${s.hidden.map((h) => `<button class="link2" data-path="${esc(h.path ?? '')}">${esc(h.scope)}</button>`).join(', ')}`).join('<br>')}</div></div>` : ''}`;
   $('#v-what').innerHTML = `<div class="tk">${html}</div>`;
   const open = (path: string | undefined): void => { const e = path ? entryAt(path) : undefined; if (e) openFile(e); };
@@ -1071,7 +1071,7 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
    ${TABS}
    <div class="dbody" id="d-edit">
     <div class="field"><input class="title-in" id="f-title" value="${esc(m.title)}" aria-label="Title"><span class="hint">Updated ${esc(fmtDate(m.modified))} · ${m.uses ? `Claude opened it ${m.uses === 1 ? 'once' : `${m.uses} times`}, most recently ${esc(ago(m.lastUsed))}` : 'Claude hasn’t opened it in 90 days'}</span><span class="hint" id="f-rename" hidden>Saving renames it${m.inn.length ? `, and updates ${m.inn.length === 1 ? 'the memory' : `the ${m.inn.length} memories`} that link to it` : ''}.</span></div>${notices}
-    <div class="field"><label for="f-kind">Kind</label><select id="f-kind">${Object.keys(KIND).map((k) => `<option value="${k}" ${k === m.type ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
+    <div class="field"><label for="f-kind">Kind</label><select id="f-kind">${KIND[m.type] ? '' : `<option value="${esc(m.type)}" selected>${m.type ? esc(m.type) + ' · kept as it is' : 'No kind set'}</option>`}${Object.keys(KIND).map((k) => `<option value="${k}" ${k === m.type ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
     <div class="field"><label for="f-desc">One-line summary</label><input id="f-desc" value="${esc(m.desc)}" placeholder="What Claude sees in its index"><span class="hint">Claude reads this line every session to decide whether to open the full memory.</span></div>
     <details class="field connbox" id="f-conn"${connOpen() ? ' open' : ''}><summary>Connections <span class="hint">${m.inn.length} mention this · ${m.out.length} mentioned here${m.missing.length ? ` · ${m.missing.length} broken` : ''}</span></summary><div class="conn"><button type="button" class="egexp" id="f-egexp" title="Expand: every connection, drag to move, zoom">⤢ Expand</button>${egoSVG(m)}${[...m.inn.slice(7), ...m.out.slice(7)].length ? `<div class="morel"><span class="hint">Also:</span>${[...new Set([...m.inn.slice(7), ...m.out.slice(7)])].map((t) => `<button type="button" class="lchip" data-id="${esc(t.id)}"><span class="dot" style="background:${model.projectOf(t.project).color}"></span>${esc(t.title)}</button>`).join('')}</div>` : ''}</div></details>
     <div class="field"><div class="lrow sticky"><label for="f-body">Details</label><span class="seg" role="group" aria-label="Details view" id="f-mode" hidden><button type="button" data-m="read" aria-pressed="true">Read</button><button type="button" data-m="edit" aria-pressed="false">Edit</button></span></div>
@@ -1112,7 +1112,7 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
   // Save stays off until the text arrives, so it can never write a placeholder or blank the file.
   void loadFile(m.path).then((f) => {
     if (ui.open?.id !== m.id) return;
-    ta.value = f.content.replace(/^---\r?\n(?:[\s\S]*?\r?\n)?---\r?\n*/, '');
+    ta.value = f.body.replace(/^\n+/, ''); // the server splits the header, exactly as saving puts it back
     mode.hidden = false; $<HTMLButtonElement>('#dsave').disabled = false;
     showDetails(false);
   }).catch(() => { if (ui.open?.id === m.id) rd.innerHTML = '<span class="err">Couldn’t read this memory. Close it and try again.</span>'; });
@@ -1377,9 +1377,9 @@ function openTool(r: Row): void {
 
 /** Where a project's memories live (or will, for its first one): '' for a folder that's gone. */
 function memoryDirFor(project: string): string {
-  if (project === GLOBAL) return `${model.state.home}/.claude/projects/${model.state.home.replace(/[/.]/g, '-')}/memory`; // scan.Encode
+  if (project === GLOBAL) return model.state.globalMemoryDir; // the server owns Claude Code's folder layout
   const p = model.state.projects.find((x) => x.path === project);
-  return p && (p.exists || p.global) && !p.worktree ? `${model.state.home}/.claude/projects/${p.dir}/memory` : '';
+  return p && (p.exists || p.global) && !p.worktree ? p.memoryDir : '';
 }
 
 function openNewMemory(): void {

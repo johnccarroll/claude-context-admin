@@ -29,6 +29,7 @@ export interface Project {
   worktree: boolean;
   global: boolean;
   repo: boolean;
+  memoryDir: string; // where Claude Code keeps this project's memories (from the server)
 }
 
 export interface Stat { count: number; last: string }
@@ -38,6 +39,9 @@ export interface Finding { code: string; path: string; project?: string; detail?
 
 export interface State {
   home: string;
+  globalMemoryDir: string; // where Everywhere memories go
+  indexMaxLines: number; // how much of MEMORY.md Claude Code loads (scan.IndexMaxLines)
+  indexMaxBytes: number;
   projects: Project[];
   entries: Entry[];
   usage: Record<string, Stat> | null;

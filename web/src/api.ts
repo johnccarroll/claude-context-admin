@@ -28,7 +28,7 @@ export function savePrefs(p: Prefs): Promise<void> {
 export const prefsSaves = (): number => saves + (pending ? 1e9 : 0);
 export const previewCaps = (path: string): Promise<{ before: string; after: string; changes: number }> =>
   get(`/api/preview/quiet-caps?path=${encodeURIComponent(path)}`);
-export const loadFile = (path: string): Promise<{ path: string; content: string; modified: string }> =>
+export const loadFile = (path: string): Promise<{ path: string; content: string; body: string; modified: string }> =>
   get(`/api/file?path=${encodeURIComponent(path)}`);
 
 export interface ActResult { ok: boolean; message: string; activity?: string; canUndo?: boolean; confirm?: { sha256: string; command: Record<string, unknown> } }

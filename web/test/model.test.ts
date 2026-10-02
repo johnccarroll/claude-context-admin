@@ -18,6 +18,7 @@ const mem = (dir: string, stem: string, name: string, links: string[] = [], proj
 });
 const state = (entries: Entry[]): State => ({
   home, projects: [], entries, usage: {}, report: { counts: {}, findings: [] }, proposals: null, health: null, readOnly: false, os: 'darwin',
+  globalMemoryDir: glob, indexMaxLines: 200, indexMaxBytes: 25600,
 });
 
 test('resolve: own folder first, then Everywhere; by slug or file name; .md and spaces ignored', () => {
@@ -92,4 +93,11 @@ test('richText: headings, quotes and lists', () => {
   expect(richText('# Title\n> moved, see [[a]]\n> line 2\n- one `x`\n- two\n1. first\nplain', L))
     .toBe('<div class="h h1">Title</div><blockquote>moved, see <L:a>\nline 2</blockquote><ul><li>one <code>x</code></li><li>two</li></ul><ol><li>first</li></ol>plain');
   expect(richText('a\nb', L)).toBe('a\nb');
+});
+
+test('header splitting matches scan.SplitHeader, including an empty header', () => {
+  expect(splitDoc('---\n---\nBody').body).toBe('Body');
+  expect(splitTool('---\n---\nBody').body).toBe('Body');
+  expect(splitDoc('---\nname: x\n---').body).toBe('');
+  expect(splitDoc('no header').body).toBe('no header');
 });
