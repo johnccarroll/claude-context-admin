@@ -2,7 +2,7 @@
 @font-face{font-family:"Geist Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2") format("woff2-variations")}
 @font-face{font-family:"Geist Mono Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2") format("woff2-variations")}
 /* Layout: frosted window over a neutral ground (dark-first, light mirror); purple is reserved for accents only. */
-:root{--gutter:24px;
+:root{--dw:460px;--gutter:24px;
   --bg:#09090b;   
   --glass:rgba(24,24,28,.55); --glass-2:rgba(16,16,19,.5); --glass-strong:rgba(30,30,35,.82); --rim:rgba(255,255,255,.07);
   --surface:#151518; --sunk:rgba(255,255,255,.04); --line:rgba(255,255,255,.07); --line-2:rgba(255,255,255,.13);
@@ -127,7 +127,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .links-n{display:inline-flex;align-items:center;gap:4px}
 .empty{padding:60px var(--gutter);text-align:center;color:var(--muted)}
 /* drawer */
-.drawer{position:absolute;top:0;right:0;bottom:0;width:min(460px,100%);border-radius:0;border:0;background:var(--surface);overflow:hidden;border-left:1px solid var(--line);box-shadow:-20px 0 40px -30px rgba(0,0,0,.35);display:flex;flex-direction:column;transform:translateX(110%);transition:transform .22s ease;z-index:5}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(var(--dw),100%);border-radius:0;border:0;background:var(--surface);overflow:hidden;border-left:1px solid var(--line);box-shadow:-20px 0 40px -30px rgba(0,0,0,.35);display:flex;flex-direction:column;transform:translateX(110%);transition:transform .22s ease;z-index:5}
 .drawer.open{transform:none}
 .dhead{display:flex;align-items:center;gap:8px;padding:0 18px;height:var(--head);flex:none;border-bottom:1px solid var(--line)}
 .dhead .where{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px;min-width:0}
@@ -160,9 +160,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .lpick [role=option] .hint{margin-left:auto;white-space:nowrap}
 .lpick [aria-selected=true]{background:var(--accent-soft)}
 .lpick .none{padding:8px 10px}
-.conn{border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.conn svg{display:block;width:100%;height:auto;background:var(--sunk)}
-.conn .cap{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:8px 12px;border-top:1px solid var(--line)}
+.conn{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--sunk)}
+.conn svg{display:block;width:100%;max-width:480px;margin:0 auto;height:auto} /* natural size in a wide panel */
+.conn .cap{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:8px 12px;border-top:1px solid var(--line);background:var(--surface)}
 .dfoot{display:flex;align-items:center;gap:8px;padding:0 18px;min-height:var(--foot);flex:none;border-top:1px solid var(--line);flex-wrap:wrap}
 .btn{border:1px solid var(--line-2);background:var(--glass-strong);border-radius:10px;padding:7px 13px;font-weight:500;font-size:13.5px}
 .btn:hover{background:var(--sunk)}
@@ -443,7 +443,15 @@ textarea.mono{font:12.5px/1.6 var(--f-mono)}
 .navb button:hover:not(:disabled){background:var(--sunk);color:var(--fg)}
 .navb button:disabled{opacity:.3;cursor:default}
 .navb svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.main:has(.drawer.open) .toast{left:calc((100% - min(460px,100%)) / 2)}
+.main:has(.drawer.open) .toast{left:calc((100% - min(var(--dw),100%)) / 2)}
+/* The editor panel's left edge: drag to resize. */
+.dgrip{display:none;position:absolute;top:0;bottom:0;right:calc(min(var(--dw),100%) - 5px);width:10px;cursor:col-resize;z-index:6;touch-action:none}
+.drawer.open+.dgrip{display:block}
+.dgrip::after{content:"";position:absolute;top:0;bottom:0;left:4px;width:2px;background:transparent;transition:background .15s}
+.dgrip:hover::after,.dgrip:focus-visible::after,body.resizing .dgrip::after{background:var(--accent-line)}
+.dgrip:focus-visible{outline:none}
+body.resizing{cursor:col-resize;user-select:none}
+@media (max-width:820px){.drawer.open+.dgrip{display:none}}
 @media (max-width:820px){.main:has(.drawer.open) .toast{bottom:76px;left:50%}}
 .app{overflow:hidden}
 .selhead{bottom:auto;min-height:100%;z-index:3} /* grows when its actions wrap */

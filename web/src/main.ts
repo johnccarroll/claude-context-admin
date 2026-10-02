@@ -32,7 +32,8 @@ async function refresh(): Promise<void> {
   const [state, p] = await Promise.all([loadState(), loadPrefs().catch(() => prefs)]);
   // Update the one prefs object in place: the sidebar's handlers hold it, and replacing it would
   // leave them changing (and saving) a stale copy. A save that started meanwhile wins.
-  if (prefsSaves() === before && before < 1e9) Object.assign(prefs, { projects: p.projects ?? {}, order: p.order ?? [], dismissed: p.dismissed });
+  if (prefsSaves() === before && before < 1e9) Object.assign(prefs, { projects: p.projects ?? {}, order: p.order ?? [], dismissed: p.dismissed, drawerWidth: p.drawerWidth });
+  if (!document.body.classList.contains('resizing')) setDrawerWidth(prefs.drawerWidth ?? DW);
   platform.show = state.os === 'darwin' ? 'Show in Finder' : 'Show in folder';
   model = buildModel(state, prefs);
   review = buildReview(model).filter((r) => r.id !== 'connect' || !connectLater());
@@ -159,7 +160,9 @@ function syncURL(): void {
   const hash = hashNow();
   if (hash === location.hash) return;
   const [cur, curQ] = [location.hash.slice(1).split('?')[0], new URLSearchParams(location.hash.split('?')[1] ?? '')];
-  const moved = cur !== hash.slice(1).split('?')[0] || (curQ.get('p') ?? '') !== ui.proj;
+  const mem = ui.open?.id ?? '', was = curQ.get('m') ?? '';
+  // A new page, or one memory to another (following a link): both are steps Back returns to.
+  const moved = cur !== hash.slice(1).split('?')[0] || (curQ.get('p') ?? '') !== ui.proj || (!!was && !!mem && was !== mem);
   if (moved) {
     navPos += 1;
     navMax = navPos; // a new page drops anything ahead
@@ -167,20 +170,26 @@ function syncURL(): void {
   } else {
     history.replaceState({ n: navPos }, '', hash);
   }
+  navMem[navPos] = mem;
   navButtons();
 }
 
 // Back and forward: each history entry records its position, so the buttons know when there is
 // somewhere to go. An entry without one was made by setting location.hash (the Mac app's menus).
 let navPos = 0, navMax = 0;
+/** The memory open at each history position, so the panel's arrows step between memories only. */
+const navMem: string[] = [];
 function navButtons(): void {
   $<HTMLButtonElement>('#navback').disabled = navPos <= 0;
   $<HTMLButtonElement>('#navfwd').disabled = navPos >= navMax;
+  const b = document.getElementById('dback') as HTMLButtonElement | null, f = document.getElementById('dfwd') as HTMLButtonElement | null;
+  if (b) b.disabled = !(navPos > 0 && navMem[navPos - 1]);
+  if (f) f.disabled = !(navPos < navMax && navMem[navPos + 1]);
 }
 function navArrived(state: unknown): void {
   const n = (state as { n?: number } | null)?.n;
   if (typeof n === 'number') navPos = n;
-  else { navPos += 1; navMax = navPos; history.replaceState({ n: navPos }, '', location.hash); }
+  else { navPos += 1; navMax = navPos; navMem[navPos] = ''; history.replaceState({ n: navPos }, '', location.hash); }
   navButtons();
 }
 
@@ -905,7 +914,7 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
     m.missing.length ? `<div class="notice"><div><b>Broken link.</b> Mentions ${m.missing.map((x) => '“' + esc(human(x)) + '”').join(', ')}, which ${m.missing.length > 1 ? "don't" : "doesn't"} exist.</div></div>` : '',
     m.badYaml ? '<div class="notice"><div><b>Header problem.</b> Claude may not read this memory’s description.</div></div>' : '',
   ].join('');
-  d.innerHTML = `<div class="dhead"><div class="where"><span class="dot" style="background:${p.color}"></span>${esc(p.label)} · updated ${esc(fmtDate(m.modified))}${m.uses ? ` · opened ${m.uses}× (last ${esc(ago(m.lastUsed))})` : ' · never opened in 90 days'}</div><button class="x" id="dx" aria-label="Close">×</button></div>
+  d.innerHTML = `<div class="dhead"><span class="navb"><button id="dback" aria-label="Previous memory" title="Previous memory" disabled><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button><button id="dfwd" aria-label="Next memory" title="Next memory" disabled><svg viewBox="0 0 16 16"><path d="m6 3 5 5-5 5"/></svg></button></span><div class="where"><span class="dot" style="background:${p.color}"></span>${esc(p.label)} · updated ${esc(fmtDate(m.modified))}${m.uses ? ` · opened ${m.uses}× (last ${esc(ago(m.lastUsed))})` : ' · never opened in 90 days'}</div><button class="x" id="dx" aria-label="Close">×</button></div>
    ${TABS}
    <div class="dbody" id="d-edit">
     <div class="field"><input class="title-in" id="f-title" value="${esc(m.title)}" aria-label="Title"></div>${notices}
@@ -923,6 +932,8 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
   watchEdits(d);
   $$('.eg', d).forEach((g) => (g.onclick = () => { const t = model.byId.get(g.dataset.id ?? ''); if (t) openMemory(t); }));
   $('#dx').onclick = () => leave(closeDrawer);
+  $('#dback').onclick = () => history.back(); // popstate opens it (asking first if there are unsaved edits)
+  $('#dfwd').onclick = () => history.forward();
   wireTabs(d, () => void showHistory(m.path, () => ui.open?.id === m.id, at));
   if (tab === 'history') $<HTMLButtonElement>('.dtabs button[data-tab="history"]', d).click();
   const ta = $<HTMLTextAreaElement>('#f-body'), rd = $('#f-read'), mode = $<HTMLButtonElement>('#f-mode');
@@ -964,6 +975,46 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
   $$('#v-all .row').forEach((r) => r.setAttribute('aria-selected', String(r.dataset.id === m.id)));
   markMap(m.id);
   syncURL();
+  navMem[navPos] = m.id; // also on first load and after Back, which don't sync the address
+  navButtons();
+}
+
+/** The editor panel's width: drag its left edge, or focus it and use the arrow keys; double-click
+ *  resets it. It's kept in prefs, since the browser version's address (and storage) changes every run. */
+const DW = 460;
+const drawerWidth = (): number => parseInt(getComputedStyle(document.documentElement).getPropertyValue('--dw')) || DW;
+function setDrawerWidth(w: number, save = false): number {
+  const room = ($('#drawer').parentElement?.clientWidth ?? innerWidth) - 560; // keep the sidebar and some list in view
+  const v = Math.round(Math.max(380, Math.min(w, Math.max(380, room))));
+  document.documentElement.style.setProperty('--dw', v + 'px');
+  const g = $('#dgrip');
+  g.setAttribute('aria-valuenow', String(v)); g.setAttribute('aria-valuemax', String(Math.max(380, room)));
+  if (save && (prefs.drawerWidth ?? DW) !== v) {
+    prefs.drawerWidth = v === DW ? undefined : v;
+    void savePrefs(prefs).catch((e: Error) => toast(e.message));
+  }
+  return v;
+}
+function wireGrip(): void {
+  const g = $('#dgrip');
+  g.onpointerdown = (e) => {
+    e.preventDefault();
+    g.setPointerCapture(e.pointerId);
+    const right = ($('#drawer').parentElement ?? document.body).getBoundingClientRect().right;
+    document.body.classList.add('resizing');
+    g.onpointermove = (ev) => void setDrawerWidth(right - ev.clientX);
+    g.onpointerup = g.onpointercancel = () => {
+      g.onpointermove = null;
+      document.body.classList.remove('resizing');
+      setDrawerWidth(drawerWidth(), true);
+    };
+  };
+  g.ondblclick = () => void setDrawerWidth(DW, true);
+  g.onkeydown = (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    setDrawerWidth(drawerWidth() + (e.key === 'ArrowLeft' ? 40 : -40), true);
+  };
 }
 
 /** Edit / History tabs in the open drawer. */
@@ -1303,7 +1354,8 @@ function boot(): void {
       document.querySelector<HTMLButtonElement>('#dsave, #tsave, #isave, #ncreate')?.click();
     }
   });
-  addEventListener('resize', () => { if (ui.view === 'map') VIEW_RENDER.map?.(); });
+  addEventListener('resize', () => { setDrawerWidth(prefs.drawerWidth ?? DW); if (ui.view === 'map') VIEW_RENDER.map?.(); });
+  wireGrip();
   theme();
   void refresh().then(applyURL);
   subscribe(() => void refresh());

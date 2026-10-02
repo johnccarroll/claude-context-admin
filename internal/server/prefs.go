@@ -24,6 +24,8 @@ type Prefs struct {
 	Order    []string                `json:"order"` // project keys in the user's order
 	// Dismissed are Review cards the user chose to keep as they are ("Keep", "Not now").
 	Dismissed []string `json:"dismissed,omitempty"`
+	// DrawerWidth is the editor panel's width in CSS pixels; 0 means the default.
+	DrawerWidth int `json:"drawerWidth,omitempty"`
 }
 
 var prefsMu sync.Mutex
@@ -62,6 +64,7 @@ func (s *Server) handlePutPrefs(w http.ResponseWriter, r *http.Request) {
 	if len(p.Dismissed) > 1000 { // oldest first; a cap keeps the file small
 		p.Dismissed = p.Dismissed[len(p.Dismissed)-1000:]
 	}
+	p.DrawerWidth = max(0, min(p.DrawerWidth, 4000))
 	for k, v := range p.Projects {
 		if len(v.Alias) > 80 {
 			v.Alias = v.Alias[:80]

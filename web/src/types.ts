@@ -55,4 +55,4 @@ export interface Budget { project: string; sources: Source[]; total: number; ind
 export interface Shadow { kind: Kind; name: string; winner: Entry; hidden: Entry[] }
 
 export interface ProjectPrefs { alias?: string; favorite?: boolean; hidden?: boolean }
-export interface Prefs { projects: Record<string, ProjectPrefs>; order: string[]; dismissed?: string[] }
+export interface Prefs { projects: Record<string, ProjectPrefs>; order: string[]; dismissed?: string[]; drawerWidth?: number }
