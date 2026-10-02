@@ -1,0 +1,11 @@
+{
+  "name": "context-admin",
+  "version": "0.1.0",
+  "description": "Lets Claude review your memories, instructions, plugins, MCP servers, skills and hooks, and suggest cleanups you approve in Claude Context Admin. Requires the cca command (brew install --cask johnccarroll/tap/claude-context-admin, or npm i -g claude-context-admin). Not affiliated with Anthropic.",
+  "author": {
+    "name": "John Carroll"
+  },
+  "homepage": "https://github.com/johnccarroll/claude-context-admin",
+  "license": "MIT",
+  "repository": "https://github.com/johnccarroll/claude-context-admin"
+}

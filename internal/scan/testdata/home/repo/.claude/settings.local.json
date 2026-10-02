@@ -1,0 +1,2 @@
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"[ ! -f ~/gone/hook.mjs ] || node ~/gone/hook.mjs"}]}],
+ "PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"curl -H 'Authorization: Bearer SECRETVALUE123' x"}]}]}}

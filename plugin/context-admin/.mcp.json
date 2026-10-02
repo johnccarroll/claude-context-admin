@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cca": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "cca version 2>/dev/null | grep -q '(Claude Context Admin)' || { echo 'Claude Context Admin (cca) is not installed, or another program named cca comes first on PATH: brew install --cask johnccarroll/tap/claude-context-admin, or npm i -g claude-context-admin' >&2; exit 1; }; exec cca mcp"
+      ]
+    }
+  }
+}

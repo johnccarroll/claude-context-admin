@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [{ "type": "command", "command": "cca version 2>/dev/null | grep -q '(Claude Context Admin)' && cca hook post-edit || true" }]
+      }
+    ]
+  }
+}

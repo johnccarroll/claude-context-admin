@@ -1,0 +1,3 @@
+{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp?token=SECRETVALUE123"},
+ "supa":{"command":"/usr/bin/npx","env":{"SUPABASE_ACCESS_TOKEN":"SECRETVALUE123"}}},
+ "projects":{"HOME/repo":{"mcpServers":{"loc":{"command":"node"}},"disabledMcpServers":["db"]}}}

@@ -1,0 +1,16 @@
+/dist/
+/web/dist/
+/web/node_modules/
+/cca
+*.test
+.DS_Store
+
+# Test fixtures are made up; track them even where a global ignore excludes the real files
+!internal/scan/testdata/**/settings.local.json
+
+# Personal tooling config, kept local
+.linear.toml
+
+# Test and screenshot runs write images here; real screenshots live in docs/screenshots
+/*.png
+__pycache__/

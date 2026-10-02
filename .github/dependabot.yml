@@ -1,0 +1,19 @@
+# Weekly updates for pinned actions (Dependabot keeps the full SHAs pinned) and dependencies,
+# grouped so each ecosystem is one pull request.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 } # skip versions younger than a week (hijacked releases get caught)
+    groups: { actions: { patterns: ["*"] } }
+  - package-ecosystem: gomod
+    directory: /
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 } # skip versions younger than a week (hijacked releases get caught)
+    groups: { go: { patterns: ["*"] } }
+  - package-ecosystem: bun
+    directory: /web
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 } # skip versions younger than a week (hijacked releases get caught)
+    groups: { web: { patterns: ["*"] } }

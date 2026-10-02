@@ -1,0 +1,14 @@
+{
+  "name": "context-admin",
+  "owner": {
+    "name": "John Carroll"
+  },
+  "plugins": [
+    {
+      "name": "context-admin",
+      "source": "./plugin/context-admin",
+      "description": "Keep Claude's context clean: review memories, instructions and tools with Claude Context Admin."
+    }
+  ],
+  "description": "Context Admin for Claude Code: review memories, instructions and tools, and approve the cleanups Claude suggests."
+}

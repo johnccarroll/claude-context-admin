@@ -1,0 +1,336 @@
+name: release
+
+# Push a version tag (git tag v0.1.0 && git push origin v0.1.0) that matches plugin.json:
+#
+#   build      Linux, no secrets   tests; the cca binaries; Linux archives; npm packages
+#   build-mac  macOS, no secrets   the app, unsigned
+#   sign-mac   macOS, environment "release" (waits for the maintainer's approval)
+#              signs and notarizes the app and the macOS npm binaries in a throwaway keychain.
+#              It installs and runs nothing but this repo's two signing scripts and Apple's tools.
+#   publish    Linux, environment "publish"
+#              GitHub Release with provenance attestations, npm (with provenance), the cask.
+#
+# "Run workflow" by hand is a dry run: both builds, nothing signed or published.
+#
+# Environment secrets (docs/RELEASING.md sets them up; both environments are limited to v* tags):
+#   release  MACOS_CERT_P12 (base64 .p12), MACOS_CERT_PASSWORD, NOTARY_KEY_P8 (base64 .p8),
+#            NOTARY_KEY_ID, NOTARY_ISSUER_ID
+#   publish  TAP_TOKEN (fine-grained: Contents read/write on homebrew-tap only)
+# npm needs no token: each package trusts this workflow and the "publish" environment (npm
+# trusted publishing, OIDC), which also adds provenance.
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (dry run: nothing is signed or published)"
+        required: true
+        default: "0.0.0-dryrun"
+
+concurrency:
+  group: release-${{ github.event_name }} # a dry run never cancels a queued release
+  cancel-in-progress: false
+
+permissions: {} # each job asks for exactly what it needs
+
+env:
+  TEAM_ID: JZZSSM8VY6 # the only Developer ID team a release may be signed by
+  APP: Claude Context Admin.app
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      manifest: ${{ steps.manifest.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false # a release builds from scratch, never from a cache another run wrote
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.11
+          no-cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }} # via env, never pasted into the script
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = push ]; then V="${GITHUB_REF_NAME#v}"; else V="$INPUT_VERSION"; fi
+          # Releases are X.Y.Z (no prereleases: they'd be published as latest); dry runs may add -suffix.
+          if [ "$EVENT" = push ]; then RE='^[0-9]+\.[0-9]+\.[0-9]+$'; else RE='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; fi
+          if ! [[ "$V" =~ $RE ]]; then
+            echo "::error::not a release version: $V"
+            exit 1
+          fi
+          P=$(node -p 'require("./plugin/context-admin/.claude-plugin/plugin.json").version')
+          if [ "$EVENT" = push ] && [ "$P" != "$V" ]; then
+            echo "::error::tag $V doesn't match the plugin's version $P; bump plugin.json in the release commit"
+            exit 1
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/release.sh "$VERSION"
+
+      - name: Test # after Build: release.sh built the web bundle the tests embed
+        run: go test ./...
+
+      - name: Fingerprint the files
+        id: manifest
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: echo "sha256=$(scripts/manifest.sh "dist/release/$VERSION")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cli
+          path: dist/release/${{ steps.version.outputs.version }}
+          if-no-files-found: error
+          retention-days: 30
+
+  build-mac:
+    needs: build
+    # macOS runners are free for public repos only: never run this from a private copy.
+    if: ${{ !github.event.repository.private }}
+    runs-on: macos-15
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.11
+          no-cache: true
+
+      - name: Build the app (unsigned)
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: scripts/build-mac-app.sh "$VERSION"
+
+      - name: Pack
+        id: pack
+        run: |
+          ditto -c -k --keepParent "dist/mac/$APP" app.zip
+          echo "sha256=$(shasum -a 256 app.zip | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: app-unsigned
+          path: app.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  sign-mac:
+    needs: [build, build-mac]
+    if: github.event_name == 'push'
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: release # the approval gate; the signing secrets live only here
+    permissions:
+      contents: read # checkout of the signing scripts; no token is used after that
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: app-unsigned
+          path: in
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cli
+          path: cli
+
+      - name: Check the app and CLI files are the ones the build jobs made
+        env:
+          WANT: ${{ needs.build-mac.outputs.sha256 }}
+          MANIFEST: ${{ needs.build.outputs.manifest }}
+        run: |
+          echo "$WANT  in/app.zip" | shasum -a 256 -c
+          [ "$(scripts/manifest.sh cli)" = "$MANIFEST" ] || { echo "::error::the cli artifact changed after build"; exit 1; }
+          ditto -x -k in/app.zip out
+
+      - name: Throwaway keychain with the Developer ID
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KC="$RUNNER_TEMP/sign.keychain-db"
+          KPW="$(openssl rand -hex 24)"
+          security create-keychain -p "$KPW" "$KC"
+          security set-keychain-settings -lut 3600 "$KC"
+          security unlock-keychain -p "$KPW" "$KC"
+          umask 077
+          printf '%s' "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          rm -P "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KPW" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC"
+          ID="$(security find-identity -v -p codesigning "$KC" | grep -o "\"Developer ID Application: [^\"]*($TEAM_ID)\"" | tr -d '"' | head -1)"
+          [ -n "$ID" ] || { echo "::error::no Developer ID Application identity for team $TEAM_ID"; exit 1; }
+          echo "CCA_SIGN_ID=$ID" >> "$GITHUB_ENV"
+          echo "CCA_KEYCHAIN=$KC" >> "$GITHUB_ENV"
+
+      - name: Sign and notarize
+        env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          umask 077
+          export NOTARY_KEY="$RUNNER_TEMP/notary.p8"
+          printf '%s' "$NOTARY_KEY_P8" | base64 --decode > "$NOTARY_KEY"
+          scripts/sign-mac-app.sh "out/$APP" "ClaudeContextAdmin-$VERSION-macos.zip"
+          scripts/sign-mac-bin.sh cli/npm/claude-context-admin-darwin-*/bin/cca
+          mkdir signed
+          mv "ClaudeContextAdmin-$VERSION-macos.zip" signed/
+          for d in arm64 x64; do cp "cli/npm/claude-context-admin-darwin-$d/bin/cca" "signed/cca-darwin-$d"; done
+
+      - name: Check every signature names our team
+        run: |
+          for f in "out/$APP" signed/cca-darwin-*; do
+            codesign -dv "$f" 2>&1 | grep -q "^TeamIdentifier=$TEAM_ID$" || { echo "::error::$f isn't signed by $TEAM_ID"; exit 1; }
+            codesign -dv "$f" 2>&1 | grep -q "flags=.*runtime" || { echo "::error::$f lacks the hardened runtime"; exit 1; }
+          done
+
+      - name: Remove the keychain and keys
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/sign.keychain-db" 2>/dev/null || true
+          rm -fP "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/notary.p8"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mac-signed
+          path: signed
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: [build, sign-mac]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: publish # TAP_TOKEN lives only here; npm trusts this environment
+    permissions:
+      contents: write # the GitHub Release
+      id-token: write # npm trusted publishing and build attestations
+      attestations: write # store the provenance attestations
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cli
+          path: cli
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: mac-signed
+          path: signed
+
+      - name: Check the CLI files are the ones build made
+        env:
+          MANIFEST: ${{ needs.build.outputs.manifest }}
+        run: '[ "$(scripts/manifest.sh cli)" = "$MANIFEST" ] || { echo "::error::the cli artifact changed after build"; exit 1; }'
+
+      - name: Assemble
+        run: |
+          # The macOS npm packages get the signed binaries, then are packed again.
+          for d in arm64 x64; do
+            install -m 755 "signed/cca-darwin-$d" "cli/npm/claude-context-admin-darwin-$d/bin/cca"
+            (cd cli/npm && npm pack "./claude-context-admin-darwin-$d" --silent >/dev/null)
+          done
+          mkdir release
+          cp cli/archives/*.tar.gz "signed/ClaudeContextAdmin-$VERSION-macos.zip" cli/THIRD_PARTY_NOTICES.txt release/
+          (cd release && sha256sum ./*.tar.gz ./*.zip > checksums.txt)
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release/*.zip
+            release/*.tar.gz
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            # A re-run: the release must hold exactly these files, or the cask and npm would point
+            # at bytes that were never uploaded. Re-run only the failed jobs, or delete the release.
+            mkdir published && gh release download "v$VERSION" --dir published
+            (cd release && sha256sum ./* | sort) > want.txt
+            (cd published && sha256sum ./* | sort) > have.txt
+            diff want.txt have.txt || { echo "::error::v$VERSION already has different files"; exit 1; }
+          else
+            gh release create "v$VERSION" release/* --title "$VERSION" --generate-notes --verify-tag
+          fi
+
+      - name: npm
+        run: |
+          npm install --global --ignore-scripts npm@11.21.0 # trusted publishing needs npm 11.5.1+
+          publish() { # skip a version already on npm, so a re-run finishes the rest
+            name=$(tar -xzOf "$1" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).name')
+            if published=$(npm view "$name@$VERSION" dist.integrity 2>/dev/null) && [ -n "$published" ]; then
+              # Already there: only fine if it's byte-for-byte ours (a name taken by someone else isn't).
+              ours="sha512-$(openssl dgst -sha512 -binary "$1" | base64 | tr -d '\n')"
+              [ "$published" = "$ours" ] || { echo "::error::$name@$VERSION on npm isn't this build"; exit 1; }
+              echo "$name@$VERSION already published"; return
+            fi
+            npm publish "$1" --access public --ignore-scripts # OIDC: no token, provenance included
+          }
+          for p in cli/npm/claude-context-admin-*-*.tgz; do publish "$p"; done # platforms first
+          publish "cli/npm/claude-context-admin-$VERSION.tgz"
+
+      - name: Homebrew cask
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          scripts/cask.sh "$VERSION" "release/ClaudeContextAdmin-$VERSION-macos.zip" > claude-context-admin.rb
+          # The token goes in a header for these two commands only, never into a URL or .git/config.
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TAP_TOKEN" | base64 | tr -d '\n')"
+          git -c http.extraheader="$auth" clone --depth 1 https://github.com/johnccarroll/homebrew-tap.git tap
+          mkdir -p tap/Casks
+          cp claude-context-admin.rb tap/Casks/
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/claude-context-admin.rb
+          git diff --cached --quiet && { echo "cask unchanged"; exit 0; }
+          git commit -m "claude-context-admin $VERSION"
+          git -c http.extraheader="$auth" push
