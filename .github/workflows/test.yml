@@ -35,6 +35,6 @@ jobs:
           if [ -n "$unformatted" ]; then echo "::error::not gofmt-formatted:"; echo "$unformatted"; echo "$unformatted" | xargs gofmt -d | head -40; exit 1; fi
           go vet ./...
           go test -race ./...
-          cd web && bunx tsc --noEmit
+          cd web && bunx tsc --noEmit && bun test
       - name: Linux smoke (serve, freedesktop Trash, undo)
         run: go build -o cca ./cmd/cca && scripts/linux-smoke.sh

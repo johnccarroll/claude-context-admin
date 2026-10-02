@@ -13,7 +13,7 @@ export const GLOBAL = 'Global';
 export interface ProjectView { key: string; label: string; defaultLabel: string; path: string; color: string; exists: boolean; favorite: boolean; hidden: boolean }
 
 export interface Mem {
-  id: string; path: string; project: string; stem: string; type: string; title: string; desc: string;
+  id: string; path: string; project: string; stem: string; slug: string; type: string; title: string; desc: string;
   modified: string; mtime: string; badYaml: boolean; links: string[];
   out: Mem[]; inn: Mem[]; missing: string[]; uses: number; lastUsed: string; agent?: string;
 }
@@ -34,7 +34,15 @@ export interface Model {
   byId: Map<string, Mem>;
   usage: Record<string, Stat>;
   entries: (kind: Entry['kind']) => Entry[];
+  /** The memory a [[key]] in a memory in dir opens, the same way Claude Code resolves it. */
+  resolve: (dir: string, key: string) => Mem | undefined;
+  /** Memories a memory in dir can link to: its own folder's, then the ones loaded everywhere. */
+  linkable: (dir: string) => Mem[];
 }
+
+/** One [[link]] in memory text: the whole match, its target and where it starts. */
+export const LINK = /\[\[([^[\]|#\n]+)(?:[|#][^\]\n]*)?\]\]/g; // = scan.Wikilink
+export const dirOf = (p: string): string => p.slice(0, p.lastIndexOf('/'));
 
 export function buildModel(state: State, prefs: Prefs = { projects: {}, order: [] }): Model {
   const usage = state.usage ?? {};
@@ -44,7 +52,7 @@ export function buildModel(state: State, prefs: Prefs = { projects: {}, order: [
     const stem = String(e.meta?.stem ?? e.name);
     const u = usage['file:' + (e.path ?? '')];
     return {
-      id: e.path ?? stem, path: e.path ?? '', project: keyOf(e), stem, type: e.type || stem.split('_')[0] || 'reference',
+      id: e.path ?? stem, path: e.path ?? '', project: keyOf(e), stem, slug: e.name || stem, type: e.type || stem.split('_')[0] || 'reference',
       title: typeof e.meta?.title === 'string' ? e.meta.title : human(e.name.includes('-') || e.name.includes('_') ? e.name : stem), desc: e.description ?? '',
       modified: day(e.modified), mtime: e.modified ?? '',
       badYaml: (e.issues ?? []).includes('bad-frontmatter'), links: e.links ?? [], out: [], inn: [], missing: [],
@@ -53,7 +61,6 @@ export function buildModel(state: State, prefs: Prefs = { projects: {}, order: [
   });
 
   // Resolve [[links]] the same way the audit does: stem, then name, same dir first, then global.
-  const dirOf = (p: string): string => p.slice(0, p.lastIndexOf('/'));
   const byPath = new Map(state.entries.map((e) => [e.path ?? '', e]));
   const index = new Map<string, Map<string, Mem>>();
   for (const m of mems) {
@@ -66,9 +73,14 @@ export function buildModel(state: State, prefs: Prefs = { projects: {}, order: [
   }
   const globalDir = mems.find((m) => m.project === GLOBAL && !m.agent)?.path;
   const globalIndex = globalDir ? index.get(dirOf(globalDir)) : undefined;
+  const resolve = (dir: string, key: string): Mem | undefined => {
+    const k = key.trim().replace(/\.md$/, ''); // as the scanner reads it
+    return index.get(dir)?.get(k) ?? globalIndex?.get(k);
+  };
+  const linkable = (dir: string): Mem[] => mems.filter((m) => !m.agent && (dirOf(m.path) === dir || (globalDir && dirOf(m.path) === dirOf(globalDir))));
   for (const m of mems) {
     for (const l of m.links) {
-      const t = index.get(dirOf(m.path))?.get(l) ?? globalIndex?.get(l);
+      const t = resolve(dirOf(m.path), l);
       if (!t) m.missing.push(l);
       else if (t !== m && !m.out.includes(t)) { m.out.push(t); t.inn.push(m); }
     }
@@ -106,7 +118,7 @@ export function buildModel(state: State, prefs: Prefs = { projects: {}, order: [
 
   return {
     state, projects, projectOf, mems, byId: new Map(mems.map((m) => [m.id, m])), usage,
-    entries: (kind) => state.entries.filter((e) => e.kind === kind),
+    entries: (kind) => state.entries.filter((e) => e.kind === kind), resolve, linkable,
   };
 }
 
@@ -130,7 +142,7 @@ export interface Target { path: string; label: string; mem?: Mem }
 
 const tok = (s: string): Set<string> =>
   new Set(s.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !['feedback', 'project', 'reference', 'user', 'the', 'and'].includes(w)));
-const similarity = (a: string, b: string): number => {
+export const similarity = (a: string, b: string): number => {
   const A = tok(a), B = tok(b);
   let i = 0;
   A.forEach((x) => { if (B.has(x)) i++; });

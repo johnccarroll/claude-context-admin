@@ -6,7 +6,7 @@ import { openPalette } from './palette';
 import { drawMap, markMap } from './map';
 import { openAdd } from './add';
 import {
-  agents, buildModel, buildReview, pluginState, human, KHELP, KIND, mcpServers, PLURAL, plugins, skills,
+  agents, buildModel, buildReview, dirOf, pluginState, human, KHELP, LINK, similarity, KIND, mcpServers, PLURAL, plugins, skills,
   type Action, type Mem, type Model, type ReviewItem, type Row,
 } from './model';
 import { renderProjects } from './sidebar';
@@ -821,6 +821,80 @@ function memoryMenu(m: Mem): MenuItem[] {
   ];
 }
 
+/** Memory text for reading: [[links]] become chips named by the memory they open (a missing one
+ *  says so), and **bold** / `code` render. The file itself keeps the [[slug]] Claude reads. */
+function richHTML(text: string, dir: string): string {
+  const inline = (x: string): string => esc(x).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  let out = '', at = 0;
+  for (const x of text.matchAll(LINK)) {
+    const key = x[1].trim().replace(/\.md$/, ''), t = model.resolve(dir, key);
+    out += inline(text.slice(at, x.index)) + (t
+      ? `<button type="button" class="lchip" data-id="${esc(t.id)}" title="Open “${esc(t.title)}”"><span class="dot" style="background:${model.projectOf(t.project).color}"></span>${esc(t.title)}</button>`
+      : `<button type="button" class="lchip bad" data-miss="${esc(key)}" title="This memory doesn't exist. Click to fix the link.">${esc(human(key))}<span>missing</span></button>`);
+    at = (x.index ?? 0) + x[0].length;
+  }
+  return out + inline(text.slice(at));
+}
+
+/** The fixes for one broken link in memory m: point it at a close match, write the note, or drop it. */
+function fixLink(at: HTMLElement, m: Mem, key: string): void {
+  if (dirty) { toast('Save or discard your edits first, then fix the link.'); return; }
+  const near = model.linkable(dirOf(m.path)).filter((c) => c !== m)
+    .map((c) => ({ c, s: Math.max(similarity(key, c.stem), similarity(key, c.title)) })).filter((x) => x.s >= 0.25)
+    .sort((a, b) => b.s - a.s).slice(0, 4);
+  menu(at, [
+    ...near.map(({ c }): MenuItem => [`Link to “${c.title}”`, () => void run('relink', { from: key, to: c.stem, paths: [m.path] })]),
+    [`Create “${human(key)}” as a new note`, () => void run('create-stub', { name: key, dir: dirOf(m.path) })],
+    null,
+    ['Remove the link', () => void run('unlink', { target: key, paths: [m.path] })],
+  ]);
+}
+
+/** Typing [[ in memory text lists the memories it can link to (dir's own, then Everywhere);
+ *  picking one writes its link. Arrows move, Enter or Tab picks, Escape closes. */
+function linkPicker(ta: HTMLTextAreaElement, dir: () => string, self?: Mem): void {
+  const box = document.createElement('div');
+  box.className = 'lpick'; box.id = ta.id + '-links'; box.setAttribute('role', 'listbox'); box.hidden = true;
+  ta.after(box);
+  ta.setAttribute('aria-autocomplete', 'list'); ta.setAttribute('aria-controls', box.id);
+  let hits: Mem[] = [], sel = 0, from = -1;
+  const close = (): void => { box.hidden = true; ta.removeAttribute('aria-activedescendant'); };
+  const paint = (): void => {
+    box.innerHTML = hits.length ? hits.map((t, i) => `<div role="option" id="${box.id}-${i}" data-i="${i}" aria-selected="${i === sel}"><span class="dot" style="background:${model.projectOf(t.project).color}"></span><span>${esc(t.title)}</span><span class="hint">${esc(model.projectOf(t.project).label)}</span></div>`).join('')
+      : '<div class="hint none">No memory by that name. Finish typing ]] to link one you’ll write later.</div>';
+    if (hits.length) ta.setAttribute('aria-activedescendant', `${box.id}-${sel}`);
+  };
+  const pick = (t: Mem): void => {
+    const end = ta.selectionStart;
+    ta.setRangeText(`[[${t.slug}]]`, from, ta.value.startsWith(']]', end) ? end + 2 : end, 'end');
+    close(); ta.focus();
+    ta.dispatchEvent(new Event('input', { bubbles: true })); // counts as an edit
+  };
+  ta.addEventListener('input', () => {
+    const q = /\[\[([^\]\n|#]*)$/.exec(ta.value.slice(0, ta.selectionStart));
+    if (!q) { close(); return; }
+    from = q.index;
+    const w = q[1].trim().toLowerCase(), d = dir();
+    hits = model.linkable(d).filter((t) => t !== self && (!w || t.title.toLowerCase().includes(w) || t.stem.toLowerCase().includes(w)))
+      .sort((a, b) => Number(dirOf(b.path) === d) - Number(dirOf(a.path) === d) || Number(b.title.toLowerCase().startsWith(w)) - Number(a.title.toLowerCase().startsWith(w)) || a.title.localeCompare(b.title))
+      .slice(0, 8);
+    sel = 0; paint(); box.hidden = false;
+    box.style.top = `${ta.offsetTop + ta.offsetHeight}px`; // under the text box (.field is a grid)
+  });
+  ta.addEventListener('keydown', (e) => {
+    if (box.hidden) return;
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && hits.length) { e.preventDefault(); sel = (sel + (e.key === 'ArrowDown' ? 1 : hits.length - 1)) % hits.length; paint(); }
+    else if ((e.key === 'Enter' || e.key === 'Tab') && hits.length) { e.preventDefault(); pick(hits[sel]); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+  });
+  box.onmousedown = (e) => { // mousedown, so the text box keeps focus
+    e.preventDefault();
+    const o = (e.target as HTMLElement).closest<HTMLElement>('[data-i]');
+    if (o) pick(hits[Number(o.dataset.i)]);
+  };
+  ta.addEventListener('blur', close);
+}
+
 function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
   if (dirty && drawerOpen()) { if (ui.open?.id !== m.id) leave(() => openMemory(m, tab, at)); return; }
   ui.file = null;
@@ -837,30 +911,48 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
     <div class="field"><input class="title-in" id="f-title" value="${esc(m.title)}" aria-label="Title"></div>${notices}
     <div class="field"><label for="f-kind">Kind</label><select id="f-kind">${Object.keys(KIND).map((k) => `<option value="${k}" ${k === m.type ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
     <div class="field"><label for="f-desc">One-line summary</label><input id="f-desc" value="${esc(m.desc)}" placeholder="What Claude sees in its index"><span class="hint">Claude reads this line every session to decide whether to open the full memory.</span></div>
-    <div class="field"><label for="f-body">Details</label><textarea id="f-body" spellcheck="true">Loading…</textarea></div>
+    <div class="field"><div class="lrow"><label for="f-body">Details</label><button class="btn sm quiet" id="f-mode" hidden>Edit</button></div>
+     <div class="rich" id="f-read"><span class="hint">Loading…</span></div><textarea id="f-body" spellcheck="true" hidden placeholder="Add details. Type [[ to link another memory."></textarea>
+     <span class="hint" id="f-tip" hidden>Type [[ to link another memory.</span></div>
     <div class="field"><label>Connections</label><div class="conn">${egoSVG(m)}<div class="cap"><span>${m.inn.length} mention this · ${m.out.length} mentioned here</span><span>Click a name to open it</span></div></div></div>
     <div class="hint" style="font-family:var(--f-mono)">${esc(m.path.replace(model.state.home, '~'))}</div>
    </div>
    ${HIST}
-   <div class="dfoot" id="f-edit"><button class="btn pri" id="dsave">Save</button>${m.project !== 'Global' ? '<button class="btn" id="dglobal">Use everywhere</button>' : ''}<span class="spacer"></span><button class="btn dng" id="ddel">Delete</button></div>`;
+   <div class="dfoot" id="f-edit"><button class="btn pri" id="dsave" disabled>Save</button>${m.project !== 'Global' ? '<button class="btn" id="dglobal">Use everywhere</button>' : ''}<span class="spacer"></span><button class="btn dng" id="ddel">Delete</button></div>`;
   d.classList.add('open');
   watchEdits(d);
   $$('.eg', d).forEach((g) => (g.onclick = () => { const t = model.byId.get(g.dataset.id ?? ''); if (t) openMemory(t); }));
   $('#dx').onclick = () => leave(closeDrawer);
   wireTabs(d, () => void showHistory(m.path, () => ui.open?.id === m.id, at));
   if (tab === 'history') $<HTMLButtonElement>('.dtabs button[data-tab="history"]', d).click();
+  const ta = $<HTMLTextAreaElement>('#f-body'), rd = $('#f-read'), mode = $<HTMLButtonElement>('#f-mode');
+  const showDetails = (edit: boolean): void => {
+    ta.hidden = !edit; rd.hidden = edit; $('#f-tip').hidden = !edit; mode.textContent = edit ? 'Preview' : 'Edit';
+    if (edit) ta.focus();
+    else rd.innerHTML = ta.value.trim() ? richHTML(ta.value, dirOf(m.path)) : '<span class="hint">No details yet. Click to add some.</span>';
+  };
+  mode.onclick = () => showDetails(rd.hidden === false);
+  rd.onclick = (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('.lchip');
+    if (!b) { if (!getSelection()?.toString()) showDetails(true); return; } // selecting text to copy isn't a click to edit
+    const t = b.dataset.id ? model.byId.get(b.dataset.id) : undefined;
+    if (t) openMemory(t); else fixLink(b, m, b.dataset.miss ?? '');
+  };
+  linkPicker(ta, () => dirOf(m.path), m);
+  // Save stays off until the text arrives, so it can never write a placeholder or blank the file.
   void loadFile(m.path).then((f) => {
     if (ui.open?.id !== m.id) return;
-    const body = f.content.replace(/^---\r?\n(?:[\s\S]*?\r?\n)?---\r?\n*/, '');
-    ($('#f-body') as HTMLTextAreaElement).value = body;
-  }).catch(() => { ($('#f-body') as HTMLTextAreaElement).value = ''; });
+    ta.value = f.content.replace(/^---\r?\n(?:[\s\S]*?\r?\n)?---\r?\n*/, '');
+    mode.hidden = false; $<HTMLButtonElement>('#dsave').disabled = false;
+    showDetails(false);
+  }).catch(() => { if (ui.open?.id === m.id) rd.innerHTML = '<span class="err">Couldn’t read this memory. Close it and try again.</span>'; });
   $('#dsave').onclick = () => {
     const title = ($('#f-title') as HTMLInputElement).value.trim();
     void run('memory-save', {
       path: m.path, type: ($('#f-kind') as HTMLSelectElement).value,
       // send a name only if the title was edited, so a save never renames by accident
       name: title === m.title ? '' : title,
-      description: ($('#f-desc') as HTMLInputElement).value, body: ($('#f-body') as HTMLTextAreaElement).value, seen: m.mtime,
+      description: ($('#f-desc') as HTMLInputElement).value, body: ta.value, seen: m.mtime,
     }).then((ok) => {
       const moved = ok && !ui.open && model.mems.find((x) => x.project === m.project && x.title === title);
       if (moved) openMemory(moved); // renamed: follow it to its new file
@@ -903,10 +995,10 @@ function openFile(e: Entry, tab: 'edit' | 'history' = 'edit', at = ''): void {
   d.innerHTML = `<div class="dhead"><div class="where">${esc(where)} · ${esc(e.kind === 'rule' ? 'rule' : 'instructions')} · ~${fmtN(Math.round((e.bytes ?? 0) / 4))} tokens</div><button class="x" id="dx" aria-label="Close">×</button></div>
    ${TABS}
    <div class="dbody" id="d-edit"><div class="field"><div class="title-in" style="padding:2px 0">${esc(e.name)}</div><span class="hint mono">${esc(path.replace(model.state.home, '~'))}</span></div>
-    <div class="field" style="flex:1"><label for="i-body">Text</label><textarea id="i-body" class="mono" style="min-height:360px" spellcheck="false">Loading…</textarea>
+    <div class="field" style="flex:1"><label for="i-body">Text</label><textarea id="i-body" class="mono" style="min-height:360px" spellcheck="false" placeholder="Loading…" readonly></textarea>
     <span class="hint">Claude reads this ${e.scope === 'user' ? 'in every project' : 'in this project'} at the start of a session. Saving keeps the previous version.</span></div></div>
    ${HIST}
-   <div class="dfoot" id="f-edit">${plugin ? '<span class="hint">Comes with a plugin; edits would be replaced when it updates.</span>' : '<button class="btn pri" id="isave">Save</button>'}<span class="spacer"></span><button class="btn" id="ifind">${platform.show}</button></div>`;
+   <div class="dfoot" id="f-edit">${plugin ? '<span class="hint">Comes with a plugin; edits would be replaced when it updates.</span>' : '<button class="btn pri" id="isave" disabled>Save</button>'}<span class="spacer"></span><button class="btn" id="ifind">${platform.show}</button></div>`;
   d.classList.add('open');
   watchEdits(d);
   $('#dx').onclick = () => leave(closeDrawer);
@@ -914,8 +1006,11 @@ function openFile(e: Entry, tab: 'edit' | 'history' = 'edit', at = ''): void {
   wireTabs(d, () => void showHistory(path, () => ui.file === path, at));
   const ta = $<HTMLTextAreaElement>('#i-body');
   let seen = e.modified ?? '';
-  void loadFile(path).then((f) => { if (ui.file === path) ta.value = f.content; }).catch(() => { ta.value = ''; });
-  const save = document.getElementById('isave');
+  const save = document.getElementById('isave') as HTMLButtonElement | null;
+  void loadFile(path).then((f) => {
+    if (ui.file !== path) return;
+    ta.value = f.content; ta.placeholder = ''; ta.readOnly = plugin; if (save) save.disabled = false;
+  }).catch(() => { if (ui.file === path) ta.placeholder = 'Couldn’t read this file. Close it and try again.'; });
   if (save) save.onclick = () => void run('file-save', { path, content: ta.value, seen }).then((ok) => {
     if (ok) seen = model.state.entries.find((x) => x.path === path)?.modified ?? seen;
   });
@@ -1020,18 +1115,20 @@ function openTool(r: Row): void {
     ${comps ? `<div class="field"><label>What's inside</label><div class="blist">${comps}</div></div>` : ''}
     ${r.tags.some((t) => t.includes('••')) ? '<div class="field"><label>Keys</label><span class="hint">Values are never read by this app or sent to Claude.</span></div>' : ''}
     ${e?.kind === 'mcp' ? `<div class="field"><label>${e.meta?.url ? 'Connects to' : 'Runs'}</label><code class="cmdline">${esc(String(e.meta?.url ?? e.meta?.command ?? '–'))}</code><span class="hint">${esc(String(e.meta?.transport ?? ''))}${e.path ? ` · defined in ${esc(e.path.replace(model.state.home, '~'))}` : ''}</span></div>` : ''}
-    ${e?.path && (e.kind === 'skill' || e.kind === 'command' || e.kind === 'agent') ? `<div class="field"><label for="t-body">Instructions</label><textarea id="t-body" ${r.readonly ? 'readonly' : ''}>Loading…</textarea></div>` : ''}
+    ${e?.path && (e.kind === 'skill' || e.kind === 'command' || e.kind === 'agent') ? `<div class="field"><label for="t-body">Instructions</label><textarea id="t-body" placeholder="Loading…" readonly></textarea></div>` : ''}
     ${r.readonly ? `<div class="notice"><div>Managed by ${esc(r.source.replace('From plugin · ', 'the plugin ').replace('claude.ai connector', 'claude.ai settings'))}. Turn it off there.</div>${r.source.startsWith('From plugin') ? '<button class="btn sm" id="toplugins">Open Plugins</button>' : ''}</div>` : ''}
    </div>
-   <div class="dfoot">${r.readonly || !e?.path || e.kind === 'plugin' || e.kind === 'mcp' ? '' : '<button class="btn pri" id="tsave">Save</button>'}${e?.scope === 'project' && (e.kind === 'skill' || e.kind === 'command') ? '<button class="btn" id="tglobal">Use everywhere</button>' : ''}<span class="spacer"></span>${r.readonly ? '' : `<button class="btn dng" id="tdel">${e?.kind === 'plugin' ? 'Uninstall' : 'Remove'}</button>`}</div>`;
+   <div class="dfoot">${r.readonly || !e?.path || e.kind === 'plugin' || e.kind === 'mcp' ? '' : '<button class="btn pri" id="tsave" disabled>Save</button>'}${e?.scope === 'project' && (e.kind === 'skill' || e.kind === 'command') ? '<button class="btn" id="tglobal">Use everywhere</button>' : ''}<span class="spacer"></span>${r.readonly ? '' : `<button class="btn dng" id="tdel">${e?.kind === 'plugin' ? 'Uninstall' : 'Remove'}</button>`}</div>`;
   d.classList.add('open');
   d.setAttribute('aria-label', `${r.name} details`);
   watchEdits(d);
   $('#dx').onclick = () => leave(closeDrawer);
   document.getElementById('toplugins')?.addEventListener('click', () => leave(() => { closeDrawer(); setView('plugins'); }));
   const ta = document.getElementById('t-body') as HTMLTextAreaElement | null;
-  if (ta && e?.path) void loadFile(e.path).then((f) => { ta.value = f.content; }).catch(() => { ta.value = ''; });
-  const save = document.getElementById('tsave');
+  const save = document.getElementById('tsave') as HTMLButtonElement | null;
+  if (ta && e?.path) void loadFile(e.path).then((f) => {
+    ta.value = f.content; ta.placeholder = ''; ta.readOnly = r.readonly; if (save) save.disabled = false;
+  }).catch(() => { ta.placeholder = 'Couldn’t read this file. Close it and try again.'; });
   let seen = e?.modified ?? '';
   if (save) save.onclick = () => void (ta && e?.path ? run('file-save', { path: e.path, content: ta.value, seen }).then((ok) => {
     if (ok) seen = model.state.entries.find((x) => x.path === e.path)?.modified ?? seen; // so a second save isn't a false conflict
@@ -1065,13 +1162,14 @@ function openNewMemory(): void {
     <div class="field"><label for="n-proj">Loads in</label><select id="n-proj">${targets.map((p) => `<option value="${esc(p.key)}" ${p.key === start ? 'selected' : ''}>${esc(p.key === GLOBAL ? 'Everywhere (every project)' : p.label)}</option>`).join('')}</select></div>
     <div class="field"><label for="n-kind">Kind</label><select id="n-kind">${Object.keys(KIND).map((k) => `<option value="${k}" ${k === 'feedback' ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
     <div class="field"><label for="n-desc">One-line summary</label><input id="n-desc" placeholder="What Claude sees in its index"></div>
-    <div class="field"><label for="n-body">Details</label><textarea id="n-body" placeholder="The rule or fact, then **Why:** and **How to apply:**"></textarea></div>
+    <div class="field"><label for="n-body">Details</label><textarea id="n-body" placeholder="The rule or fact, then **Why:** and **How to apply:**"></textarea><span class="hint">Type [[ to link another memory.</span></div>
    </div>
    <div class="dfoot"><button class="btn pri" id="ncreate">Create</button><span class="spacer"></span></div>`;
   d.classList.add('open');
   watchEdits(d);
   $('#dx').onclick = () => leave(closeDrawer);
   ($('#n-title') as HTMLInputElement).focus();
+  linkPicker($<HTMLTextAreaElement>('#n-body'), () => memoryDirFor($<HTMLSelectElement>('#n-proj').value));
   $('#ncreate').onclick = () => {
     const title = ($('#n-title') as HTMLInputElement).value.trim();
     if (!title) { toast('Give the memory a title first.'); return; }

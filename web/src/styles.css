@@ -143,6 +143,23 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .hint{font-size:12px;color:var(--faint)}
 .notice{display:flex;gap:10px;align-items:flex-start;background:var(--warn-soft);color:var(--fg);border-radius:9px;padding:10px 12px;font-size:13px}
 .notice b{color:var(--warn)}
+.field{position:relative}
+.lrow{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.btn.quiet{background:none;border-color:transparent;color:var(--muted);padding:2px 8px}
+.btn.quiet:hover{color:var(--fg);background:var(--sunk)}
+.rich{background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-height:120px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere;cursor:text}
+.rich code{font-family:var(--f-mono);font-size:.9em}
+.rich .err{color:var(--danger)}
+.lchip{display:inline-flex;align-items:center;gap:6px;max-width:100%;font:inherit;font-size:.93em;line-height:1.4;padding:0 8px;border-radius:7px;border:1px solid var(--line);background:var(--glass-strong);color:var(--fg);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:baseline}
+.lchip .dot{width:7px;height:7px}
+.lchip:hover,.lchip:focus-visible{border-color:var(--accent-line);background:var(--accent-soft)}
+.lchip.bad{color:var(--danger);background:var(--danger-soft);border-color:transparent}
+.lchip.bad span{font-size:11px;opacity:.8}
+.lpick{position:absolute;z-index:20;left:0;right:0;margin-top:2px;max-height:260px;overflow:auto;background:var(--glass-strong);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:4px}
+.lpick [role=option]{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;font-size:13px;cursor:pointer}
+.lpick [role=option] .hint{margin-left:auto;white-space:nowrap}
+.lpick [aria-selected=true]{background:var(--accent-soft)}
+.lpick .none{padding:8px 10px}
 .conn{border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .conn svg{display:block;width:100%;height:auto;background:var(--sunk)}
 .conn .cap{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:8px 12px;border-top:1px solid var(--line)}

@@ -8,7 +8,7 @@ web:
 
 test:
 	go test -race ./...
-	cd web && bunx tsc --noEmit
+	cd web && bunx tsc --noEmit && bun test
 
 check: test
 	git ls-files -z '*.go' | xargs -0 gofmt -l | (! grep .)
