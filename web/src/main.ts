@@ -1,6 +1,8 @@
 import './styles.css';
 import { act, decide, loadActivity, prefsSaves, rescan, savePrefs, type Activity, loadBudget, loadFile, loadPrefs, loadState, loadVersions, previewCaps, reveal, subscribe, undo, type Version } from './api';
 import { checkbox, clearSelection, renderSelectionBar, selected, wireCheckboxes } from './bulk';
+import { select } from 'd3-selection';
+import { zoom as d3zoom } from 'd3-zoom';
 import { diffLines, hunks } from './diff';
 import { composeTool, richText, splitDoc, splitTool, type ToolDoc } from './doc';
 import { openPalette } from './palette';
@@ -824,25 +826,80 @@ const VIEW_RENDER: Partial<Record<View, () => void>> = {
 
 // ---------- drawers ----------
 
-function egoSVG(m: Mem): string {
-  const L = m.inn.slice(0, 7), R = m.out.slice(0, 7), W = 420, rowH = 26;
-  const H = Math.max(140, Math.max(L.length, R.length) * rowH + 40), cx = W / 2, cy = H / 2;
+/** The memories m links to and from, drawn around it. max caps each side (the panel shows 7;
+ *  the expanded view shows all). Each link is one group, so hovering it highlights the line too. */
+function egoSVG(m: Mem, max = 7, W = 420, minH = 140): string {
+  const L = m.inn.slice(0, max), R = m.out.slice(0, max), rowH = 26;
+  const H = Math.max(minH, Math.max(L.length, R.length) * rowH + 40), cx = W / 2, cy = H / 2;
+  const lx = Math.max(162, cx - 210), rx = Math.min(W - 162, cx + 210); // columns stay near the centre when wide
   const ys = (k: number): number[] => Array.from({ length: k }, (_, i) => cy + (i - (k - 1) / 2) * rowH);
-  const cut = (s: string): string => (s.length > 21 ? s.slice(0, 20) + '…' : s);
+  const room = W > 420 ? 40 : 21, cut = (s: string): string => (s.length > room ? s.slice(0, room - 1) + '…' : s);
+  const hitW = Math.min(room * 7 + 16, W > 420 ? 320 : 150); // the whole row (dot and label) is the click target
   const font = 'font-family="Geist Variable,system-ui"';
   const side = (arr: Mem[], x: number, anchor: 'start' | 'end', dir: number): string => ys(arr.length).map((y, i) => {
     const t = arr[i];
-    return `<path d="M${cx + dir * 34},${cy} C${cx + dir * 80},${cy} ${x - dir * 60},${y} ${x - dir * 6},${y}" fill="none" stroke="${cssVar('var(--line-2)')}" stroke-width="1.3"/>
-      <g class="eg" data-id="${esc(t.id)}" style="cursor:pointer"><circle cx="${x}" cy="${y}" r="4.5" fill="${cssVar(model.projectOf(t.project).color)}"/>
+    return `<g class="eg" data-id="${esc(t.id)}" tabindex="0" role="button" aria-label="${esc(t.title)}"><title>${esc(t.title)} · ${esc(model.projectOf(t.project).label)}</title>
+      <path d="M${cx + dir * 34},${cy} C${cx + dir * 80},${cy} ${x - dir * 60},${y} ${x - dir * 6},${y}" fill="none" stroke="${cssVar('var(--line-2)')}" stroke-width="1.3"/>
+      <rect x="${anchor === 'end' ? x - hitW : x - 10}" y="${y - rowH / 2}" width="${hitW + 10}" height="${rowH}" fill="transparent"/>
+      <circle cx="${x}" cy="${y}" r="4.5" fill="${cssVar(model.projectOf(t.project).color)}"/>
       <text x="${x + (anchor === 'end' ? -10 : 10)}" y="${y + 4}" text-anchor="${anchor}" font-size="12" fill="${cssVar('var(--fg)')}" ${font}>${esc(cut(t.title))}</text></g>`;
   }).join('');
-  const label = (x: number, a: string, t: string): string => `<text x="${x}" y="18" text-anchor="${a}" font-size="11" fill="${cssVar('var(--faint)')}" ${font} letter-spacing=".06em">${t}</text>`;
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Connections">${L.length ? label(16, 'start', 'MENTIONED BY') : ''}${R.length ? label(W - 16, 'end', 'MENTIONS') : ''}
-    ${side(L, 162, 'end', -1)}${side(R, W - 162, 'start', 1)}
+  const top = (k: number): number => (W > 420 ? cy - ((k - 1) / 2) * rowH - 24 : 18); // over its column when wide
+  const label = (x: number, a: string, t: string, y = 18): string => `<text x="${x}" y="${y}" text-anchor="${a}" font-size="11" fill="${cssVar('var(--faint)')}" ${font} letter-spacing=".06em">${t}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Connections">${L.length ? label(W > 420 ? lx + 4 : 16, W > 420 ? 'end' : 'start', 'MENTIONED BY', top(L.length)) : ''}${R.length ? label(W > 420 ? rx - 4 : W - 16, W > 420 ? 'start' : 'end', 'MENTIONS', top(R.length)) : ''}
+    ${side(L, lx, 'end', -1)}${side(R, rx, 'start', 1)}
     <circle cx="${cx}" cy="${cy}" r="30" fill="${cssVar('var(--glass-strong)')}" stroke="${cssVar(model.projectOf(m.project).color)}" stroke-width="2.5"/>
     <text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="11" font-weight="600" fill="${cssVar('var(--fg)')}" ${font}>This</text>
     ${m.missing.length ? `<text x="${cx}" y="${H - 10}" text-anchor="middle" font-size="11.5" fill="${cssVar('var(--danger)')}" ${font}>${m.missing.length} broken link${m.missing.length > 1 ? 's' : ''}</text>` : ''}
     ${!L.length && !R.length && !m.missing.length ? `<text x="${cx}" y="${cy + 52}" text-anchor="middle" font-size="12" fill="${cssVar('var(--muted)')}" ${font}>Not connected to anything yet</text>` : ''}</svg>`;
+}
+
+/** Clicks and Enter on the graph's memories (and the overflow chips) go to pick(). */
+function wireEgo(root: HTMLElement, pick: (t: Mem) => void): void {
+  $$('.eg, .morel .lchip', root).forEach((g) => {
+    const go = (): void => { const t = model.byId.get(g.dataset.id ?? ''); if (t) pick(t); };
+    g.onclick = go;
+    g.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+  });
+}
+
+/** The connections graph, large: every link, drag to move, pinch or ⌘-scroll (or + and −) to zoom.
+ *  Clicking a memory re-centres the graph on it, so you can walk the links; Open edits it. */
+function openEgo(start: Mem): void {
+  document.querySelector('.egodlg')?.remove();
+  const dlg = document.createElement('dialog');
+  dlg.className = 'egodlg'; dlg.setAttribute('aria-label', 'Connections');
+  $('#app').append(dlg);
+  dlg.onclose = () => dlg.remove();
+  const trail: Mem[] = [];
+  let cur = start;
+  const draw = (): void => {
+    dlg.innerHTML = `<div class="egohead"><span class="navb"><button id="egback" aria-label="Back" ${trail.length ? '' : 'disabled'}><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button></span>
+      <span class="dot" style="background:${model.projectOf(cur.project).color}"></span><b>${esc(cur.title)}</b><span class="hint">${esc(model.projectOf(cur.project).label)} · ${cur.inn.length} mention it · ${cur.out.length} mentioned</span>
+      <span class="spacer"></span><span class="hint hide-sm">Drag to move · pinch or ⌘-scroll to zoom</span>
+      <span class="maptools" style="position:static;display:flex"><button id="egin" aria-label="Zoom in">+</button><button id="egout" aria-label="Zoom out">−</button></span>
+      <button class="btn sm pri" id="egopen">Open</button><button class="x" id="egx" aria-label="Close">×</button></div>
+      <div class="egobody conn"></div>`;
+    const body = $('.egobody', dlg);
+    const bw = Math.max(420, body.clientWidth), bh = Math.max(140, body.clientHeight);
+    body.innerHTML = egoSVG(cur, Infinity, bw, bh); // drawn at the dialog's size: 1:1
+    const svgEl = body.querySelector('svg')!, vp = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    vp.append(...svgEl.childNodes);
+    svgEl.append(vp);
+    const svg = select<SVGSVGElement, unknown>(svgEl);
+    const z = d3zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 4])
+      .filter((e: Event) => e.type !== 'wheel' || (e as WheelEvent).ctrlKey || (e as WheelEvent).metaKey) // plain scrolling isn't zoom
+      .on('zoom', (e) => vp.setAttribute('transform', String(e.transform)));
+    svg.call(z).call(z.scaleTo, 1.2, [bw / 2, bh / 2]); // a little closer than 1:1 to start, around the centre
+    $('#egin', dlg).onclick = () => void svg.transition().duration(200).call(z.scaleBy, 1.3);
+    $('#egout', dlg).onclick = () => void svg.transition().duration(200).call(z.scaleBy, 1 / 1.3);
+    $<HTMLButtonElement>('#egback', dlg).onclick = () => { cur = trail.pop() ?? cur; draw(); };
+    $('#egopen', dlg).onclick = () => { dlg.close(); openMemory(cur); };
+    $('#egx', dlg).onclick = () => dlg.close();
+    wireEgo(dlg, (t) => { if (t !== cur) { trail.push(cur); cur = t; draw(); } });
+  };
+  dlg.showModal(); // first, so the graph is drawn at the dialog's real size
+  draw();
 }
 
 function memoryMenu(m: Mem): MenuItem[] {
@@ -884,15 +941,27 @@ function fixLink(at: HTMLElement, m: Mem, key: string): void {
 
 /** Typing [[ in memory text lists the memories it can link to (dir's own, then Everywhere);
  *  picking one writes its link. Arrows move, Enter or Tab picks, Escape closes. */
-/** The bar above memory text: Link a memory (opens the [[ list), Bold, Code, and, while the cursor
- *  is in a link, which memory it opens with Change and Remove. It only edits the text box. */
-function editTools(ta: HTMLTextAreaElement, dir: () => string): HTMLElement {
-  const bar = document.createElement('div');
-  bar.className = 'ftools'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Formatting');
-  bar.innerHTML = `<button type="button" class="btn sm quiet" data-t="link" title="Link a memory (or type [[)">[[ ]] Link a memory</button><button type="button" class="btn sm quiet" data-t="bold" title="Bold"><b>B</b></button><button type="button" class="btn sm quiet" data-t="code" title="Code (a block when several lines are selected)"><span class="mono">&lt;/&gt;</span></button><span class="fctx" aria-live="polite"></span>`;
-  ta.before(bar);
-  bar.hidden = ta.hidden;
-  new MutationObserver(() => { bar.hidden = ta.hidden; }).observe(ta, { attributes: true, attributeFilter: ['hidden'] });
+/** Whether the editor's Connections section starts open (it remembers the last choice). */
+const connOpen = (): boolean => { try { return localStorage.getItem('cca-conn') !== '0'; } catch { return true; } };
+
+/** A text box that grows with its text, so the drawer is the only thing that scrolls. */
+function autogrow(ta: HTMLTextAreaElement): void {
+  const fit = (): void => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 2 + 'px'; };
+  ta.addEventListener('input', fit);
+  new MutationObserver(fit).observe(ta, { attributes: true, attributeFilter: ['hidden'] });
+  requestAnimationFrame(fit);
+}
+
+/** Formatting for memory text, in its label row: Link (opens the [[ list, or a menu while the
+ *  cursor is in a link), Bold and Code. The text's right-click menu has the same, plus Open / Change /
+ *  Remove for a link and Cut / Copy / Paste; Shift+right-click keeps the system menu. */
+function editTools(ta: HTMLTextAreaElement, dir: () => string, row: HTMLElement): void {
+  const tools = document.createElement('span');
+  tools.className = 'ftools'; tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', 'Formatting');
+  tools.innerHTML = `<button type="button" data-t="link" title="Link a memory (or type [[)"><svg viewBox="0 0 16 16"><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.8.8M9.5 6.5a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l.8-.8"/></svg><span>Link</span></button><button type="button" data-t="bold" title="Bold" aria-label="Bold"><b>B</b></button><button type="button" data-t="code" title="Code (a block when several lines are selected)" aria-label="Code"><span class="mono">&lt;/&gt;</span></button>`;
+  row.querySelector('label')?.after(tools);
+  tools.hidden = ta.hidden;
+  new MutationObserver(() => { tools.hidden = ta.hidden; }).observe(ta, { attributes: true, attributeFilter: ['hidden'] });
   const edit = (from: number, to: number, text: string, sel?: [number, number]): void => {
     ta.focus(); ta.setRangeText(text, from, to, 'end');
     if (sel) ta.setSelectionRange(sel[0], sel[1]);
@@ -902,32 +971,54 @@ function editTools(ta: HTMLTextAreaElement, dir: () => string): HTMLElement {
     const [a, b] = [ta.selectionStart, ta.selectionEnd], t = ta.value.slice(a, b);
     edit(a, b, open + t + close, [a + open.length, a + open.length + t.length]);
   };
+  const picked = (): string => ta.value.slice(ta.selectionStart, ta.selectionEnd);
+  const link = (): void => edit(ta.selectionStart, ta.selectionEnd, '[[' + picked()); // the list filters by any selected text
+  const bold = (): void => wrap('**');
+  const code = (): void => (picked().includes('\n') ? wrap('```\n', '\n```') : wrap('`'));
   const here = (): RegExpMatchArray | undefined => [...ta.value.matchAll(LINK)].find((x) => (x.index ?? 0) < ta.selectionStart && ta.selectionStart < (x.index ?? 0) + x[0].length);
-  const ctx = $('.fctx', bar);
-  const show = (): void => {
-    const l = here();
-    if (!l) { ctx.innerHTML = ''; return; }
-    const key = l[1].trim().replace(/\.md$/, ''), t = model.resolve(dir(), key);
-    ctx.innerHTML = `${t ? `Opens <b>${esc(t.title)}</b>` : `<span class="err">“${esc(human(key))}” doesn’t exist</span>`}<button type="button" class="link2" data-t="change">Change</button><button type="button" class="link2" data-t="unlink">Remove link</button>`;
+  const linkItems = (l: RegExpMatchArray): MenuItem[] => {
+    const key = l[1].trim().replace(/\.md$/, ''), t = model.resolve(dir(), key), at = l.index ?? 0;
+    return [
+      ...(t ? [[`Open “${t.title}”`, () => openMemory(t)] as MenuItem] : []),
+      [t ? 'Change link' : `“${human(key)}” doesn’t exist: pick a memory`, () => edit(at, at + l[0].length, '[[')],
+      ['Remove link', () => edit(at, at + l[0].length, l[0].replace(LINK, (_, k: string) => human(k.trim().replace(/\.md$/, ''))))],
+    ];
   };
-  for (const ev of ['keyup', 'click', 'input', 'focus']) ta.addEventListener(ev, show);
-  bar.onmousedown = (e) => e.preventDefault(); // keep the cursor where it is
-  bar.onclick = (e) => {
+  const linkBtn = $<HTMLButtonElement>('[data-t="link"]', tools);
+  const sync = (): void => { const l = here(); linkBtn.lastElementChild!.textContent = l ? 'Edit link' : 'Link'; linkBtn.classList.toggle('on', !!l); };
+  for (const ev of ['keyup', 'click', 'input', 'focus']) ta.addEventListener(ev, sync);
+  tools.onmousedown = (e) => e.preventDefault(); // keep the cursor where it is
+  tools.onclick = (e) => {
     const t = (e.target as HTMLElement).closest<HTMLElement>('[data-t]')?.dataset.t, l = here();
-    const [a, b] = [ta.selectionStart, ta.selectionEnd], picked = ta.value.slice(a, b);
-    if (t === 'link') edit(a, b, '[[' + picked); // the list filters by any selected text
-    else if (t === 'bold') wrap('**');
-    else if (t === 'code') picked.includes('\n') ? wrap('```\n', '\n```') : wrap('`');
-    else if (t === 'change' && l) edit(l.index ?? 0, (l.index ?? 0) + l[0].length, '[[');
-    else if (t === 'unlink' && l) edit(l.index ?? 0, (l.index ?? 0) + l[0].length, l[0].replace(LINK, (_, k: string) => human(k.trim().replace(/\.md$/, ''))));
+    if (t === 'link') { if (l) menu(linkBtn, linkItems(l)); else link(); }
+    else if (t === 'bold') bold();
+    else if (t === 'code') code();
   };
-  return bar;
+  ta.addEventListener('contextmenu', (e) => {
+    if (e.shiftKey) return; // the system menu (spelling suggestions)
+    e.preventDefault();
+    const l = here(), sel = picked(), [a, b] = [ta.selectionStart, ta.selectionEnd];
+    const clip = (text: string): Promise<void> => navigator.clipboard.writeText(text).catch(() => toast('Press ⌘C to copy.'));
+    menu(e, [
+      ...(l ? [...linkItems(l), null] : []),
+      ['Link a memory', link], ['Bold', bold], ['Code', code], null,
+      ...(sel ? [['Cut', () => void clip(sel).then(() => edit(a, b, ''))], ['Copy', () => void clip(sel)]] as MenuItem[] : []),
+      ['Paste', () => void navigator.clipboard.readText().then((x) => edit(a, b, x), () => toast('Press ⌘V to paste.'))],
+    ]);
+  });
 }
 
 function linkPicker(ta: HTMLTextAreaElement, dir: () => string, self?: Mem): void {
   const box = document.createElement('div');
   box.className = 'lpick'; box.id = ta.id + '-links'; box.setAttribute('role', 'listbox'); box.hidden = true;
-  editTools(ta, dir).append(box); // drops down from the toolbar, which stays in view on long text
+  autogrow(ta);
+  const row = ta.closest('.field')?.querySelector<HTMLElement>('.lrow') ?? ta.parentElement!;
+  const scroller = row.closest<HTMLElement>('.dbody');
+  if (scroller && row.classList.contains('sticky')) scroller.addEventListener('scroll', () => { // pinned: show its edge
+    row.classList.toggle('stuck', scroller.scrollTop > 0 && row.getBoundingClientRect().top - scroller.getBoundingClientRect().top < 1);
+  }, { passive: true });
+  editTools(ta, dir, row);
+  row.append(box); // drops down from the label row, which stays in view on long text
   ta.setAttribute('aria-autocomplete', 'list'); ta.setAttribute('aria-controls', box.id);
   let hits: Mem[] = [], sel = 0, from = -1;
   const close = (): void => { box.hidden = true; ta.removeAttribute('aria-activedescendant'); };
@@ -982,29 +1073,32 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
     <div class="field"><input class="title-in" id="f-title" value="${esc(m.title)}" aria-label="Title"><span class="hint">Updated ${esc(fmtDate(m.modified))} · ${m.uses ? `Claude opened it ${m.uses === 1 ? 'once' : `${m.uses} times`}, most recently ${esc(ago(m.lastUsed))}` : 'Claude hasn’t opened it in 90 days'}</span><span class="hint" id="f-rename" hidden>Saving renames it${m.inn.length ? `, and updates ${m.inn.length === 1 ? 'the memory' : `the ${m.inn.length} memories`} that link to it` : ''}.</span></div>${notices}
     <div class="field"><label for="f-kind">Kind</label><select id="f-kind">${Object.keys(KIND).map((k) => `<option value="${k}" ${k === m.type ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
     <div class="field"><label for="f-desc">One-line summary</label><input id="f-desc" value="${esc(m.desc)}" placeholder="What Claude sees in its index"><span class="hint">Claude reads this line every session to decide whether to open the full memory.</span></div>
-    <div class="field"><div class="lrow"><label for="f-body">Details</label><button class="btn sm quiet" id="f-mode" hidden>Edit</button></div>
+    <details class="field connbox" id="f-conn"${connOpen() ? ' open' : ''}><summary>Connections <span class="hint">${m.inn.length} mention this · ${m.out.length} mentioned here${m.missing.length ? ` · ${m.missing.length} broken` : ''}</span></summary><div class="conn"><button type="button" class="egexp" id="f-egexp" title="Expand: every connection, drag to move, zoom">⤢ Expand</button>${egoSVG(m)}${[...m.inn.slice(7), ...m.out.slice(7)].length ? `<div class="morel"><span class="hint">Also:</span>${[...new Set([...m.inn.slice(7), ...m.out.slice(7)])].map((t) => `<button type="button" class="lchip" data-id="${esc(t.id)}"><span class="dot" style="background:${model.projectOf(t.project).color}"></span>${esc(t.title)}</button>`).join('')}</div>` : ''}</div></details>
+    <div class="field"><div class="lrow sticky"><label for="f-body">Details</label><span class="seg" role="group" aria-label="Details view" id="f-mode" hidden><button type="button" data-m="read" aria-pressed="true">Read</button><button type="button" data-m="edit" aria-pressed="false">Edit</button></span></div>
      <div class="rich" id="f-read"><span class="hint">Loading…</span></div><textarea id="f-body" spellcheck="true" hidden placeholder="Add details. Type [[ to link another memory."></textarea>
 </div>
-    <div class="field"><label>Connections</label><div class="conn">${egoSVG(m)}${[...m.inn.slice(7), ...m.out.slice(7)].length ? `<div class="morel"><span class="hint">Also:</span>${[...new Set([...m.inn.slice(7), ...m.out.slice(7)])].map((t) => `<button type="button" class="lchip" data-id="${esc(t.id)}"><span class="dot" style="background:${model.projectOf(t.project).color}"></span>${esc(t.title)}</button>`).join('')}</div>` : ''}<div class="cap"><span>${m.inn.length} mention this · ${m.out.length} mentioned here</span><span>Click a name to open it</span></div></div></div>
     <div class="hint" style="font-family:var(--f-mono)">${esc(m.path.replace(model.state.home, '~'))}</div>
    </div>
    ${HIST}
    <div class="dfoot" id="f-edit"><button class="btn pri" id="dsave" disabled>Save</button>${m.project !== 'Global' ? '<button class="btn" id="dglobal">Use everywhere</button>' : ''}<span class="spacer"></span><button class="btn dng" id="ddel">Delete</button></div>`;
   d.classList.add('open');
   watchEdits(d);
-  $$('.eg, .morel .lchip', d).forEach((g) => (g.onclick = () => { const t = model.byId.get(g.dataset.id ?? ''); if (t) openMemory(t); }));
+  wireEgo(d, (t) => openMemory(t));
+  $('#f-egexp').onclick = () => openEgo(m);
+  $('#f-conn').addEventListener('toggle', () => { try { localStorage.setItem('cca-conn', $<HTMLDetailsElement>('#f-conn').open ? '1' : '0'); } catch { /* only a convenience */ } });
   $('#dx').onclick = () => leave(closeDrawer);
   $('#dback').onclick = () => history.back(); // popstate opens it (asking first if there are unsaved edits)
   $('#dfwd').onclick = () => history.forward();
   wireTabs(d, () => void showHistory(m.path, () => ui.open?.id === m.id, at));
   if (tab === 'history') $<HTMLButtonElement>('.dtabs button[data-tab="history"]', d).click();
-  const ta = $<HTMLTextAreaElement>('#f-body'), rd = $('#f-read'), mode = $<HTMLButtonElement>('#f-mode');
+  const ta = $<HTMLTextAreaElement>('#f-body'), rd = $('#f-read'), mode = $('#f-mode');
   const showDetails = (edit: boolean): void => {
-    ta.hidden = !edit; rd.hidden = edit; mode.textContent = edit ? 'Preview' : 'Edit';
+    ta.hidden = !edit; rd.hidden = edit;
+    $$('button', mode).forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.m === 'edit') === edit)));
     if (edit) ta.focus();
     else rd.innerHTML = ta.value.trim() ? richHTML(ta.value, dirOf(m.path)) : '<span class="hint">No details yet. Click to add some.</span>';
   };
-  mode.onclick = () => showDetails(rd.hidden === false);
+  mode.onclick = (e) => { const m = (e.target as HTMLElement).closest<HTMLElement>('[data-m]')?.dataset.m; if (m) showDetails(m === 'edit'); };
   rd.onclick = (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('.lchip');
     if (!b) { if (!getSelection()?.toString()) showDetails(true); return; } // selecting text to copy isn't a click to edit
@@ -1013,7 +1107,7 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
   };
   linkPicker(ta, () => dirOf(m.path), m);
   // Escape while editing goes back to the read view (edits kept), not out of the drawer.
-  ta.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); showDetails(false); mode.focus(); } });
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); showDetails(false); $<HTMLButtonElement>('[data-m="edit"]', mode).focus(); } });
   $<HTMLInputElement>('#f-title').addEventListener('input', (e) => { $('#f-rename').hidden = (e.target as HTMLInputElement).value.trim() === m.title; });
   // Save stays off until the text arrives, so it can never write a placeholder or blank the file.
   void loadFile(m.path).then((f) => {
@@ -1303,7 +1397,7 @@ function openNewMemory(): void {
     <div class="field"><label for="n-proj">Loads in</label><select id="n-proj">${targets.map((p) => `<option value="${esc(p.key)}" ${p.key === start ? 'selected' : ''}>${esc(p.key === GLOBAL ? 'Everywhere (every project)' : p.label)}</option>`).join('')}</select></div>
     <div class="field"><label for="n-kind">Kind</label><select id="n-kind">${Object.keys(KIND).map((k) => `<option value="${k}" ${k === 'feedback' ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
     <div class="field"><label for="n-desc">One-line summary</label><input id="n-desc" placeholder="What Claude sees in its index"></div>
-    <div class="field"><label for="n-body">Details</label><textarea id="n-body" placeholder="The rule or fact. Then why it matters, and how to apply it."></textarea></div>
+    <div class="field"><div class="lrow sticky"><label for="n-body">Details</label></div><textarea id="n-body" placeholder="The rule or fact. Then why it matters, and how to apply it."></textarea></div>
    </div>
    <div class="dfoot"><button class="btn pri" id="ncreate">Create</button><span class="spacer"></span></div>`;
   d.classList.add('open');
