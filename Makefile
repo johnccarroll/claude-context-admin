@@ -11,7 +11,7 @@ test:
 	cd web && bunx tsc --noEmit
 
 check: test
-	gofmt -l . | (! grep .)
+	git ls-files -z '*.go' | xargs -0 gofmt -l | (! grep .)
 	go vet ./...
 
 # Live dev server: UI edits reload the page, Go edits restart cca (see scripts/dev.sh).
