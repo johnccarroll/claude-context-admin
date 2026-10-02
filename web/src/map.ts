@@ -20,6 +20,7 @@ export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Me
   const svg = select<SVGSVGElement, unknown>('#msvg');
   const box = host.getBoundingClientRect();
   const W = box.width, H = Math.max(box.height, 240); // fit the window; zoom handles the rest
+  $('#maphow').textContent = matchMedia('(hover: none)').matches ? 'Tap a dot to open it. Pinch to zoom.' : 'Hover to preview, click to open. Scroll to zoom.';
   svg.attr('viewBox', `0 0 ${W} ${H}`).selectAll('*').remove();
 
   const mems = model.mems.filter(visible);
@@ -110,10 +111,12 @@ export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Me
     });
 
   if (!ns.length) return;
-  const x0 = Math.min(...ns.map((d) => d.x! - d.r)) - 20, x1 = Math.max(...ns.map((d) => d.x! + d.r)) + 20;
-  const y0 = Math.min(...ns.map((d) => d.y! - d.r)) - 36, y1 = Math.max(...ns.map((d) => d.y! + d.r)) + 20;
-  const k = Math.min(W / (x1 - x0), H / (y1 - y0), 1.6);
-  const fit = zoomIdentity.translate(W / 2 - (k * (x0 + x1)) / 2, H / 2 - (k * (y0 + y1)) / 2).scale(k);
+  // Fit everything drawn, project labels included, into the space above the legend.
+  const bb = (g.node() as SVGGElement).getBBox();
+  const x0 = bb.x - 20, x1 = bb.x + bb.width + 20, y0 = bb.y - 16, y1 = bb.y + bb.height + 16;
+  const legend = ($('.maplegend') as HTMLElement).offsetHeight + 24, Hf = Math.max(160, H - legend);
+  const k = Math.min(W / (x1 - x0), Hf / (y1 - y0), 1.6);
+  const fit = zoomIdentity.translate(W / 2 - (k * (x0 + x1)) / 2, Hf / 2 - (k * (y0 + y1)) / 2).scale(k);
   const sig = `${W}x${H}:${ns.map((n) => n.m.id).join('|')}`;
   const z = d3zoom<SVGSVGElement, unknown>().scaleExtent([0.3, 5])
     .on('zoom', (e) => { g.attr('transform', e.transform); view = { sig, t: e.transform }; });

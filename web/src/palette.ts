@@ -1,7 +1,7 @@
 // ⌘K search across memories, instructions, skills, plugins and projects. Names and summaries
 // match instantly in the browser; full text comes from the server as you type.
 import { search, type Hit } from './api';
-import { KIND, type Mem, type Model } from './model';
+import { dirOf, human, KIND, LINK, type Mem, type Model } from './model';
 import { $, $$, esc } from './ui';
 
 interface Hooks {
@@ -41,11 +41,14 @@ export function openPalette(model: Model, h: Hooks): void {
     const mems = model.mems.filter((m) => has(m.title + ' ' + m.desc));
     // full-text hits on memories not already matched by title or summary
     const textMems = hits.filter((x) => x.kind === 'memory' && byPath.has(x.path) && !mems.includes(byPath.get(x.path)!));
-    const files = hits.filter((x) => x.kind !== 'memory');
+    // MEMORY.md only repeats memories' titles and summaries, which already match above.
+    const files = hits.filter((x) => x.kind !== 'memory' && x.kind !== 'memory-index');
+    // Links in a snippet read as the memory they open, as in the editor.
+    const named = (text: string, dir: string): string => text.replace(LINK, (_, k: string) => '“' + (model.resolve(dir, k)?.title ?? human(k.trim().replace(/\.md$/, ''))) + '”');
     const toolkit = [...model.entries('plugin'), ...model.entries('mcp'), ...model.entries('agent').filter((e) => e.scope !== 'plugin')]
       .filter((e) => w && has(e.name + ' ' + (e.description ?? ''))).slice(0, 5);
     const projects = model.projects.filter((p) => w && has(p.label)).slice(0, 4);
-    const memRow = (m: Mem, snippet?: string): string => `<div class="it" data-mem="${esc(m.id)}"><span class="dot" style="background:${model.projectOf(m.project).color}"></span><span class="ti">${mark(m.title, w)}</span><span class="su">${mark(snippet ?? m.desc, w)}</span><span class="k">${esc(KIND[m.type] ?? m.type)} · ${esc(model.projectOf(m.project).label)}</span></div>`;
+    const memRow = (m: Mem, snippet?: string): string => `<div class="it" data-mem="${esc(m.id)}"><span class="dot" style="background:${model.projectOf(m.project).color}"></span><span class="ti">${mark(m.title, w)}</span><span class="su">${mark(snippet ? named(snippet, dirOf(m.path)) : m.desc, w)}</span><span class="k">${esc(KIND[m.type] ?? m.type)} · ${esc(model.projectOf(m.project).label)}</span></div>`;
     const actions = [
       ...(!w || 'new memory'.includes(w) || w.startsWith('new') ? ['<div class="it" data-act="new"><span class="tag">+</span><span class="ti">New memory</span><span class="su">Write something Claude should remember</span></div>'] : []),
       ...(!w || /^(add|install|mcp|plugin|skill)/.test(w) ? ['<div class="it" data-act="add"><span class="tag">+</span><span class="ti">Add MCP server, plugin or skill</span><span class="su">Paste what the docs give you</span></div>'] : []),

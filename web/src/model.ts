@@ -129,7 +129,8 @@ export interface Action { label: string; op: string; args: Record<string, unknow
 export interface ReviewItem {
   id: string; tone: Tone; icon: string; title: string; body: string;
   finding?: Finding; // instruction-health: confidence, file and evidence lines
-  preview?: string; // the text a Claude suggestion would write, shown before you accept
+  preview?: string; // what a Claude suggestion would change, shown before you accept
+  previewBody?: { text: string; dir: string }; // the text it would write (links shown by name)
   mems?: Mem[]; paths?: string[]; pills?: [string, 'old' | 'new'][];
   primary: Action; secondary: Action; source: string;
   /** Items a group fix applies to, each with a checkbox: actions with a `paths` argument act
@@ -167,13 +168,20 @@ export function pluginState(m: Model): string {
   return !p ? 'missing' : p.enabled ? 'on' : String(p.meta?.id);
 }
 
-/** One line per argument of a Claude proposal (lists in full), long texts shown separately. */
-function proposalDetails(a: Record<string, unknown>, home: string): string {
-  const show = (v: unknown): string => (typeof v === 'string' ? v.replace(home, '~') : JSON.stringify(v));
+/** One line per argument of a Claude proposal (lists in full), long texts shown separately. A path
+ *  to a known memory reads as its title and project; everything else is shown as is. */
+function proposalDetails(m: Model, a: Record<string, unknown>): string {
+  const show = (v: unknown): string => {
+    if (typeof v !== 'string') return JSON.stringify(v);
+    const mem = m.byId.get(v);
+    return mem ? `“${mem.title}” (${m.projectOf(mem.project).label})` : v.replace(m.state.home, '~');
+  };
+  const LABEL: Record<string, string> = { path: 'Memory', paths: 'Memories', keep: 'Keep', drop: 'Merge in and remove', type: 'Kind', name: 'Name', title: 'Title', dir: 'Folder', id: 'Plugin', scope: 'Where' };
+  const lab = (k: string): string => LABEL[k] ?? k;
   // Files first: a long argument can't push what gets changed out of sight.
   const first = (k: string): number => (['paths', 'path', 'keep', 'drop'].includes(k) ? 0 : 1);
   return Object.entries(a).filter(([k]) => !['body', 'content', 'description'].includes(k)).sort(([x], [y]) => first(x) - first(y)).map(([k, v]) =>
-    Array.isArray(v) ? `${k} (${v.length}):\n${v.map((x) => '  ' + show(x)).join('\n')}` : `${k}: ${show(v)}`).join('\n');
+    Array.isArray(v) ? `${lab(k)} (${v.length}):\n${v.map((x) => '  ' + show(x)).join('\n')}` : `${lab(k)}: ${k === 'type' ? KIND[String(v)] ?? show(v) : show(v)}`).join('\n');
 }
 
 export function buildReview(m: Model): ReviewItem[] {
@@ -184,12 +192,14 @@ export function buildReview(m: Model): ReviewItem[] {
     const files = [a.path, a.keep, a.drop, ...(Array.isArray(a.paths) ? a.paths : [])].filter((x): x is string => typeof x === 'string');
     const target = typeof a.id === 'string' ? a.id.split('@')[0] : typeof a.name === 'string' ? a.name : typeof a.title === 'string' ? a.title : '';
     out.push({ id: 'proposal:' + p.id, tone: 'fix', icon: '✦', title: `Claude suggests: ${OP_TITLE[p.op] ?? p.op}${target ? ` (${target})` : ''}`,
-      body: p.reason, pills: files.slice(0, 6).map((f) => [f.split('/').pop() ?? f, 'new'] as [string, 'new']),
+      body: p.reason, pills: files.filter((f) => !m.byId.has(f)).slice(0, 6).map((f) => [f.split('/').pop() ?? f, 'new'] as [string, 'new']), // memories are named above
       primary: { label: 'Accept', op: 'proposal-accept', args: { id: p.id } }, secondary: { label: 'Dismiss', op: 'proposal-dismiss', args: { id: p.id } },
       source: 'Suggested by Claude',
       // Everything accepting will do: every argument, every path, not just the reason Claude gave.
-      preview: [proposalDetails(a, m.state.home), typeof a.description === 'string' && a.description ? 'Summary: ' + a.description : '',
-        typeof a.body === 'string' ? a.body : typeof a.content === 'string' ? a.content : ''].filter(Boolean).join('\n\n') || undefined });
+      preview: [proposalDetails(m, a), typeof a.description === 'string' && a.description
+        ? (m.byId.get(String(a.path))?.desc && m.byId.get(String(a.path))?.desc !== a.description ? `Summary, now: ${m.byId.get(String(a.path))?.desc}\nSummary, after: ${a.description}` : 'Summary: ' + a.description) : ''].filter(Boolean).join('\n\n') || undefined,
+      previewBody: typeof a.body === 'string' && a.body ? { text: a.body, dir: typeof a.dir === 'string' ? a.dir : dirOf(String(a.path ?? files[0] ?? '')) }
+        : typeof a.content === 'string' && a.content ? { text: a.content, dir: '' } : undefined });
   }
   // Setup: the context-admin plugin lets Claude read all this and suggest changes for Review.
   const plug = pluginState(m);
@@ -263,10 +273,13 @@ export function buildReview(m: Model): ReviewItem[] {
     title: `AGENTS.md in ${m.projectOf(a.project ?? '').label} is ignored`,
     body: 'This project also has a CLAUDE.md, so Claude Code skips its AGENTS.md (the default instructionFiles setting). Merge them into one file.',
     paths: [a.path], primary: { label: 'Show instructions', op: 'view-ins', args: {} }, secondary: { label: 'Keep', op: 'dismiss', args: {} }, source: 'Built-in check' });
-  for (const c of f('claude-md-convertible')) out.push({ id: 'convert:' + c.path, tone: 'fix', icon: 'A',
-    title: `Convert ${m.projectOf(c.project ?? '').label}'s CLAUDE.md to AGENTS.md`,
-    body: 'Claude Code 2.1.277+ reads AGENTS.md, and so do other agent tools. The content stays the same; the old file goes to the Trash.',
-    paths: [c.path], primary: { label: 'Convert', op: 'convert-to-agents', args: { path: c.path } }, secondary: { label: 'Keep CLAUDE.md', op: 'dismiss', args: {} }, source: 'Built-in check' });
+  // One card for every convertible CLAUDE.md, with a checkbox per project.
+  const conv = f('claude-md-convertible');
+  if (conv.length) out.push({ id: 'convert:' + conv.map((c) => c.path).sort().join('|'), tone: 'fix', icon: 'A',
+    title: conv.length === 1 ? `Convert ${m.projectOf(conv[0].project ?? '').label}'s CLAUDE.md to AGENTS.md` : `Convert ${conv.length} projects' CLAUDE.md to AGENTS.md`,
+    body: 'Claude Code reads AGENTS.md, and so do other agent tools. The content stays the same; the old file goes to the Trash.',
+    targets: conv.map((c) => ({ path: c.path, label: m.projectOf(c.project ?? '').label })),
+    primary: { label: 'Convert', op: 'convert-many', args: { paths: [] } }, secondary: { label: 'Keep CLAUDE.md', op: 'dismiss', args: {} }, source: 'Built-in check' });
 
   // Instruction health (the mechanical part of /claude-api prompt-audit).
   const file = (p: string): string => p.replace(m.state.home, '~');
@@ -336,7 +349,7 @@ export function buildReview(m: Model): ReviewItem[] {
     const a = m.mems[i], b = m.mems[j];
     if (a.project === b.project || a.type !== b.type || seen.has(a.id) || seen.has(b.id) || similarity(a.stem, b.stem) < 0.75) continue;
     seen.add(a.id); seen.add(b.id);
-    out.push({ id: `dup:${a.id}|${b.id}`, tone: 'warn', icon: '⇄', title: 'These two look like the same memory',
+    out.push({ id: `dup:${a.id}|${b.id}`, tone: 'warn', icon: '⇄', title: `“${a.title}” and “${b.title}” look like the same memory`,
       body: `One is in ${m.projectOf(a.project).label}, the other in ${m.projectOf(b.project).label}. Merging keeps one copy in Everywhere.`, mems: [a, b],
       primary: { label: 'Merge into Everywhere', op: 'merge-global', args: { keep: a.path, drop: b.path } }, secondary: { label: 'Keep both', op: 'dismiss', args: {} }, source: 'Built-in check' });
   }
@@ -387,9 +400,9 @@ export function mcpServers(m: Model): Row[] {
     const [uses, last] = sumUsage(m.usage, (k) => k === 'mcp:' + e.name);
     const env = (e.meta?.envKeys ?? []) as string[];
     return { key: `${e.scope}:${e.project ?? ''}:${e.name}`, name: e.name, desc: String(e.meta?.url ?? e.meta?.command ?? ''),
-      source: e.scope === 'user' ? 'Yours · everywhere' : e.scope === 'local' ? `Only you · ${base(e.project ?? '')}` : `Project · ${base(e.project ?? '')}`,
+      source: e.scope === 'user' ? 'Yours · everywhere' : e.scope === 'local' ? `Only you · ${m.projectOf(e.project ?? '').label}` : `Project · ${m.projectOf(e.project ?? '').label}`,
       scope: e.scope, project: e.project, enabled: e.enabled, readonly: false, uses, last,
-      tags: [String(e.meta?.transport ?? ''), ...env.map((k) => k + ' ••••••')], warn: [], entry: e };
+      tags: [e.meta?.url ? 'over the web' : 'on your computer', ...env.map((k) => k + ' ••••••')], warn: [], entry: e };
   });
   const known = new Set(rows.map((r) => r.name));
   for (const [k, v] of Object.entries(m.usage)) {
@@ -410,7 +423,7 @@ export function skills(m: Model): Row[] {
   return mine.map((e) => {
     const [uses, last] = sumUsage(m.usage, (k) => k === 'skill:' + e.name || k.endsWith(':' + e.name) && e.kind === 'command');
     const n = copies.get(`${e.kind}:${e.name}`)?.size ?? 0;
-    return { key: e.path ?? e.name, name: e.kind === 'command' ? '/' + e.name : e.name, desc: e.description ?? '', source: e.scope === 'user' ? 'Everywhere' : base(e.project ?? ''),
+    return { key: e.path ?? e.name, name: e.kind === 'command' ? '/' + e.name : e.name, desc: e.description ?? '', source: e.scope === 'user' ? 'Everywhere' : m.projectOf(e.project ?? '').label,
       scope: e.scope, project: e.project, enabled: e.enabled, readonly: false, uses, last,
       tokens: Math.round((e.bytes ?? 0) / 4), tokensLabel: 'when used',
       tags: e.kind === 'command' ? ['command'] : [], warn: e.scope === 'project' && n > 1 ? [`copied in ${n} projects`] : [], entry: e };
@@ -421,7 +434,7 @@ export function agents(m: Model): Row[] {
   const rows: Row[] = m.entries('agent').map((e) => {
     const [uses, last] = sumUsage(m.usage, (k) => k === 'agent:' + e.name);
     return { key: e.path ?? e.name, name: e.name, desc: e.description ?? '',
-      source: e.scope === 'plugin' ? 'From plugin · ' + String(e.meta?.plugin) : e.scope === 'user' ? 'Everywhere' : base(e.project ?? ''),
+      source: e.scope === 'plugin' ? 'From plugin · ' + String(e.meta?.plugin) : e.scope === 'user' ? 'Everywhere' : m.projectOf(e.project ?? '').label,
       scope: e.scope, enabled: e.scope === 'plugin' ? e.meta?.pluginEnabled !== false : e.enabled, readonly: e.scope === 'plugin', uses, last, tags: [], warn: [], entry: e };
   });
   const known = new Set(rows.map((r) => r.name));

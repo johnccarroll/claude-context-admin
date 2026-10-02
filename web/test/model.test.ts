@@ -48,3 +48,28 @@ test('commandText: a usual install command reads as a command line; anything els
   expect(commandText({ run: ['a', 'b'] })).toBe(JSON.stringify({ run: ['a', 'b'] }, null, 2));
   expect(commandText({ command: 'x', args: [1] })).toBe(JSON.stringify({ command: 'x', args: [1] }, null, 2));
 });
+
+import { composeTool, splitDoc, splitTool } from '../src/doc';
+
+test('splitTool / composeTool: edits only what changed, keeps everything else byte for byte', () => {
+  const src = '---\r\nname: notes\r\ndescription: Draft release notes\r\ntools: Read, Grep\r\n---\r\nDo it.\r\n';
+  const d = splitTool(src);
+  expect([d.desc, d.others, d.body]).toEqual(['Draft release notes', ['tools: Read, Grep'], 'Do it.\r\n']);
+  expect(composeTool(d, d.desc!, d.body)).toBe(src); // untouched: exact bytes, CRLF kept
+  expect(composeTool(d, 'Say "hi"', 'New.')).toBe('---\nname: notes\ndescription: "Say \\"hi\\""\ntools: Read, Grep\n---\nNew.');
+  expect(splitTool("---\ndescription: 'It''s fast'\n---\nx").desc).toBe("It's fast");
+  expect(splitTool('---\ndescription: "a \\"b\\""\n---\nx').desc).toBe('a "b"');
+  for (const odd of ['description: >\n  folded', 'description: [a, b]', 'description: text # note', "description: 'bad ' quote'"]) {
+    const t = splitTool(`---\n${odd}\n---\nbody`);
+    expect({ odd, desc: t.desc, di: t.di }).toEqual({ odd, desc: null, di: -1 }); // not safely editable: read-only
+  }
+  expect(splitTool('no header').desc).toBeNull();
+  expect(composeTool(splitTool('no header'), '', 'changed')).toBe('changed');
+});
+
+test('splitDoc: header in plain words for History', () => {
+  const d = splitDoc('---\nname: deploy-checklist\ndescription: "Migrations first"\nmetadata:\n  type: feedback\nmodified: x\n---\nBody');
+  expect(d.fields).toEqual([['Title', 'Deploy checklist'], ['Summary', 'Migrations first'], ['Kind', 'Rule']]);
+  expect(d.rest).toBe('modified: x');
+  expect(d.body).toBe('Body');
+});

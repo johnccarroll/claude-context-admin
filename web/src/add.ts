@@ -35,12 +35,14 @@ const SCOPES: [string, string][] = [
 export function openAdd(d: HTMLElement, h: AddHooks, start: 'mcp' | 'plugin' | 'skill' = 'mcp'): void {
   const projects = h.model().state.projects.filter((p) => p.exists && !p.worktree && !p.global);
   const cur = projects.find((p) => p.path === h.scope());
-  d.innerHTML = `<div class="dhead"><div class="where">Add to Claude</div><button class="x" id="dx" aria-label="Close">×</button></div>
+  const what = { mcp: 'an MCP server', plugin: 'a plugin', skill: 'a skill' }[start];
+  const hint = { mcp: 'The JSON or <span class="mono">claude mcp add</span> command from the server\'s install guide.',
+    plugin: 'The <span class="mono">/plugin</span> commands from the plugin\'s install guide.', skill: 'A SKILL.md, or write the skill in the form below.' }[start];
+  d.innerHTML = `<div class="dhead"><div class="where">Add ${what}</div><button class="x" id="dx" aria-label="Close">×</button></div>
    <div class="dbody">
     <div class="field"><label for="a-text">${start === 'skill' ? 'Paste a SKILL.md, or write one below' : 'Paste what the docs give you'}</label>
      <textarea id="a-text" class="mono" spellcheck="false" placeholder="${esc(start === 'plugin' ? '/plugin marketplace add owner/repo\n/plugin install name@marketplace' : start === 'skill' ? '---\nname: my-skill\ndescription: When Claude should use it\n---\nInstructions…' : EXAMPLE)}"></textarea>
-     <span class="hint">An MCP server's JSON, a <span class="mono">claude mcp add</span> command, <span class="mono">/plugin</span> commands or a SKILL.md. Nothing is added until you confirm.</span></div>
-    ${start === 'skill' ? '' : '<button class="link2" id="a-skill" style="justify-self:start">Or write a new skill</button>'}
+     <span class="hint">${hint} Nothing is added until you confirm.</span></div>
     <div id="a-preview"></div>
    </div>`;
   d.classList.add('open');
@@ -157,8 +159,6 @@ export function openAdd(d: HTMLElement, h: AddHooks, start: 'mcp' | 'plugin' | '
       render(r.plan, r.literals);
     }, 250);
   };
-  const sk = document.getElementById('a-skill');
-  if (sk) sk.onclick = () => skillForm({ name: '', description: '', body: '' });
   if (start === 'skill') skillForm({ name: '', description: '', body: '' });
   text.focus();
 }

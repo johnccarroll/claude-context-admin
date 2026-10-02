@@ -2,6 +2,7 @@ import './styles.css';
 import { act, decide, loadActivity, prefsSaves, rescan, savePrefs, type Activity, loadBudget, loadFile, loadPrefs, loadState, loadVersions, previewCaps, reveal, subscribe, undo, type Version } from './api';
 import { checkbox, clearSelection, renderSelectionBar, selected, wireCheckboxes } from './bulk';
 import { diffLines, hunks } from './diff';
+import { composeTool, splitDoc, splitTool, type ToolDoc } from './doc';
 import { openPalette } from './palette';
 import { drawMap, markMap } from './map';
 import { openAdd } from './add';
@@ -106,6 +107,7 @@ function setView(v: View): void {
   ui.view = v;
   if (v !== 'all') clearSelection();
   $$('#nav button, #nav2 button, #mnav button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.v === v)));
+  document.querySelector<HTMLElement>(`#mnav button[data-v="${v}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); // phones: keep the current page in view
   for (const x of VIEWS) $('#v-' + x).hidden = x !== v;
   $('#searchwrap').hidden = v !== 'all' && v !== 'map';
   $('#newmem').hidden = v !== 'all' && v !== 'map';
@@ -479,7 +481,7 @@ function renderReview(): void {
   // main action rightmost).
   const card = (r: ReviewItem, dismissed = false): string => `<div class="card ${dismissed ? 'dim' : ''}" data-r="${esc(r.id)}">
     <div class="chead"><div class="ic ${r.tone}">${esc(r.icon)}</div><h3>${esc(r.title)}</h3><span class="src">${esc(r.source)}</span></div>
-    <div class="cbody"><p>${esc(r.body)}</p>${r.finding ? evidenceHTML(r) : ''}${r.preview ? `${r.preview.split('\n').length > 18 ? `<div class="hint">${r.preview.split('\n').length} lines: scroll to read all of it before accepting.</div>` : ''}<div class="diff2 preview">${esc(r.preview).split('\n').map((l) => `<div class="a">${l || ' '}</div>`).join('')}</div>` : ''}${r.pills ? `<div class="pillrow">${r.pills.map(([t, c]) => `<span class="pill ${c}">${esc(t)}</span>`).join('<span style="color:var(--faint)">→</span>')}</div>` : ''}
+    <div class="cbody"><p>${esc(r.body)}</p>${r.finding ? evidenceHTML(r) : ''}${r.preview ? `${r.preview.split('\n').length > 18 ? `<div class="hint">${r.preview.split('\n').length} lines: scroll to read all of it before accepting.</div>` : ''}<div class="diff2 preview">${esc(r.preview).split('\n').map((l) => `<div class="a">${l || ' '}</div>`).join('')}</div>` : ''}${r.previewBody ? `<div class="hint" style="margin-top:8px">The text it would write:</div><div class="rich preview">${richHTML(r.previewBody.text, r.previewBody.dir)}</div>` : ''}${r.pills ? `<div class="pillrow">${r.pills.map(([t, c]) => `<span class="pill ${c}">${esc(t)}</span>`).join('<span style="color:var(--faint)">→</span>')}</div>` : ''}
     ${r.targets && r.targets.length > 1 ? targets(r) : r.targets ? `<div class="pillrow">${r.targets.map((t) => t.mem ? pill(t.mem) : `<span class="pill">${esc(t.label)}</span>`).join('')}</div>` : r.mems?.length ? `<div class="pillrow">${r.mems.map(pill).join('')}</div>` : ''}</div>
     <div class="acts">${dismissed ? '<span class="hint">Dismissed</span><span class="spacer"></span><button class="btn sm" data-a="restore">Show again</button>'
       : `<span class="spacer"></span><button class="btn sm ${r.secondary.danger ? 'dng' : ''}" data-a="secondary" ${off(r, r.secondary)}>${esc(label(r, r.secondary))}</button>${r.more?.items.length ? `<button class="btn sm" data-a="more">${esc(r.more.label)} ▾</button>` : ''}<button class="btn pri sm ${r.primary.danger ? 'dng' : ''}" data-a="primary" ${off(r, r.primary)}>${esc(label(r, r.primary))}</button>`}</div></div>`;
@@ -495,7 +497,7 @@ function renderReview(): void {
     toast(r.ok ? 'Checked again: Review is up to date.' : r.message);
   };
   document.getElementById('showdis')?.addEventListener('click', () => { ui.showDismissed = !ui.showDismissed; render(); });
-  $$('#v-review .pill[data-id]').forEach((p) => (p.onclick = () => { const m = model.byId.get(p.dataset.id ?? ''); if (m) openMemory(m); }));
+  $$('#v-review .pill[data-id], #v-review .rich .lchip[data-id]').forEach((p) => (p.onclick = () => { const m = model.byId.get(p.dataset.id ?? ''); if (m) openMemory(m); }));
   $$('#v-review .card').forEach((c) => {
     const r = review.find((x) => x.id === c.dataset.r);
     if (!r) return;
@@ -539,6 +541,17 @@ function renderReview(): void {
         return;
       }
       if (a.op === 'reveal') { void reveal(String(a.args.path)); return; }
+      if (a.op === 'convert-many') { // one conversion per checked project, each with its own Undo in Activity
+        const paths = (args.paths as string[]) ?? [];
+        if (!paths.length) { toast('Tick at least one project.'); return; }
+        if (model.state.readOnly) { toast('Read-only mode: start cca without --read-only to make changes.'); return; }
+        const res = [];
+        for (const path of paths) res.push(await act('convert-to-agents', { path }));
+        const bad = res.find((x) => !x.ok);
+        await refresh();
+        toast(bad ? bad.message : paths.length === 1 ? res[0].message : `Converted ${paths.length} files to AGENTS.md. Undo any of them in Activity.`);
+        return;
+      }
       if (a.op === 'relocate-pick') { relocateMenu(c.querySelector<HTMLElement>('[data-a="secondary"]') ?? c, String(a.args.from)); return; }
       if (a.op === 'preview-caps') { void openCapsPreview(String(a.args.path), () => render()); return; }
       if (a.op === 'copy-audit') { void copyText(auditCommand(String(a.args.path), String(a.args.project)), 'Copied. Paste it in a terminal: Claude runs the official prompt audit and proposes fixes.'); return; }
@@ -563,7 +576,7 @@ function relocateMenu(at: HTMLElement | MouseEvent, from: string): void {
 function evidenceHTML(r: ReviewItem): string {
   const x = r.finding!;
   const lines = (x.evidence ?? []).map((e) => `<div class="ev"><span class="ln">${esc(e.line)}</span><span>${esc(e.text.trim().slice(0, 240))}</span></div>`).join('');
-  return `<div class="evid"><div class="meta2"><span class="conf ${esc(x.confidence)}">${esc(x.confidence)}</span><span class="mono">${esc(x.path.replace(model.state.home, '~'))}</span></div>${lines ? `<div class="diff2">${lines}</div>` : ''}</div>`;
+  return `<div class="evid"><div class="meta2"><span class="conf ${esc(x.confidence)}" title="How sure the check is that this needs a change">${esc(({ High: 'Likely', Medium: 'Possible', Low: 'Unsure' } as Record<string, string>)[x.confidence ?? ''] ?? x.confidence ?? '')}</span><span class="mono">${esc(x.path.replace(model.state.home, '~'))}</span></div>${lines ? `<div class="diff2">${lines}</div>` : ''}</div>`;
 }
 
 /** The command that runs the official prompt audit on one file, from its project folder. */
@@ -680,7 +693,7 @@ async function renderWhat(): Promise<void> {
 // ---------- toolkit lists ----------
 
 function rowsHTML(rows: Row[], opts: { tokens?: boolean } = {}): string {
-  return rows.map((r) => `<div class="trow" data-k="${esc(r.key)}"><div style="min-width:0"><div class="nm">${esc(r.name)}<small>${esc(r.source)}</small>${r.warn.map((w) => `<span class="tag warn">${esc(w)}</span>`).join('')}</div>${r.desc ? `<div class="ds">${esc(r.desc)}</div>` : ''}${r.tags.length ? `<div class="comps">${r.tags.filter(Boolean).map((t) => `<span class="tag${t.includes('••') ? ' mono' : ''}">${esc(t)}</span>`).join('')}</div>` : ''}</div>
+  return rows.map((r) => `<div class="trow" data-k="${esc(r.key)}" tabindex="0" role="button" aria-label="${esc(r.name)}: open details"><div style="min-width:0"><div class="nm">${esc(r.name)}<small>${esc(r.source)}</small>${r.warn.map((w) => `<span class="tag warn">${esc(w)}</span>`).join('')}</div>${r.desc ? `<div class="ds">${esc(r.desc)}</div>` : ''}${r.tags.length ? `<div class="comps">${r.tags.filter(Boolean).map((t) => `<span class="tag${t.includes('••') ? ' mono' : ''}">${esc(t)}</span>`).join('')}</div>` : ''}</div>
     ${opts.tokens && r.tokens !== undefined ? `<div class="stat2 hide-sm"><b>~${fmtN(r.tokens)} tokens</b>${esc(r.tokensLabel ?? '')}</div>` : '<span></span>'}${usageCell(r.uses, r.last, !!opts.tokens)}${r.canToggle ? toggle(r.enabled, r.key) : ''}</div>`).join('');
 }
 
@@ -689,6 +702,7 @@ function wireRows(root: HTMLElement, rows: Row[], onToggle?: (r: Row, on: boolea
     const r = rows.find((x) => x.key === el.dataset.k);
     if (!r) return;
     el.onclick = () => openTool(r);
+    el.onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); openTool(r); } };
     const path = r.entry?.path;
     el.oncontextmenu = (e) => {
       e.preventDefault();
@@ -767,18 +781,29 @@ const EVENTS: [string, string][] = [['SessionStart', 'When a session starts'], [
   ['PostToolUse', 'After Claude uses a tool'], ['Stop', 'When Claude finishes replying'], ['SubagentStop', 'When an agent finishes'], ['PreCompact', 'Before the conversation is compacted'],
   ['SessionEnd', 'When a session ends'], ['WorktreeCreate', 'When a worktree is created'], ['WorktreeRemove', 'When a worktree is removed']];
 
+/** A hook matcher in plain words: "Edit|Write" → "when Claude edits or writes files". Unknown
+ *  patterns stay as written. */
+function matcherText(m: string): string {
+  const T: Record<string, string> = { Edit: 'edits files', MultiEdit: 'edits files', Write: 'writes files', Read: 'reads files', Bash: 'runs a shell command',
+    Glob: 'searches for files', Grep: 'searches files', WebFetch: 'fetches a web page', WebSearch: 'searches the web', Task: 'starts an agent', Agent: 'starts an agent', NotebookEdit: 'edits a notebook' };
+  if (m === '*' || m === '') return 'for every tool';
+  const parts = m.split('|').map((x) => x.trim());
+  const words = parts.map((x) => T[x] ?? (/^mcp__([^_]+(?:_[^_]+)*)__/.test(x) || /^mcp__[\w-]+$/.test(x) ? `uses the ${x.split('__')[1]} MCP server` : ''));
+  return words.every(Boolean) ? 'when Claude ' + [...new Set(words)].join(' or ') : m;
+}
+
 function renderHooks(): void {
   heading('Hooks', 'Commands that run at points in a session');
   const hooks = model.entries('hook').filter((h) => pass(layerOf(h.scope), h.project));
   const scopeTag = (h: Entry): string => h.scope === 'plugin' ? `<span class="tag">plugin · ${esc(h.meta?.plugin)}</span>` : h.scope === 'user' ? '<span class="tag">Everywhere</span>'
     : `<span class="tag">${h.scope === 'local' ? 'Only you · ' : ''}${esc(model.projectOf(h.project ?? '').label)}</span>`;
-  const item = (h: Entry): string => `<div class="hitem"><div style="min-width:0"><code>${esc(h.meta?.command)}</code><div class="comps" style="margin-top:6px">${scopeTag(h)}${h.meta?.matcher ? `<span class="tag mono">${esc(h.meta.matcher)}</span>` : ''}${(h.issues ?? []).length ? '<span class="tag bad">script not found</span>' : ''}</div></div><div style="display:flex;gap:8px;align-items:center">${h.scope === 'plugin' ? '' : `<button class="btn sm dng hrm" data-path="${esc(h.path)}" data-ev="${esc(h.name)}" data-g="${esc(h.meta?.group)}" data-pos="${esc(h.meta?.pos)}">Remove</button>`}</div></div>`;
+  const item = (h: Entry): string => `<div class="hitem"><div style="min-width:0"><code>${esc(String(h.meta?.command ?? '').replaceAll('${CLAUDE_PLUGIN_ROOT}', '‹plugin folder›'))}</code><div class="comps" style="margin-top:6px">${scopeTag(h)}${h.meta?.matcher ? `<span class="tag" title="Matcher: ${esc(h.meta.matcher)}">${esc(matcherText(String(h.meta.matcher)))}</span>` : ''}${(h.issues ?? []).length ? '<span class="tag bad">script not found</span>' : ''}</div></div><div style="display:flex;gap:8px;align-items:center">${h.scope === 'plugin' ? '' : `<button class="btn sm dng hrm" data-path="${esc(h.path)}" data-ev="${esc(h.name)}" data-g="${esc(h.meta?.group)}" data-pos="${esc(h.meta?.pos)}">Remove</button>`}</div></div>`;
   const known = new Set(EVENTS.map(([e]) => e));
   const extra = [...new Set(hooks.map((h) => h.name).filter((n) => !known.has(n)))].map((n) => [n, ''] as [string, string]);
   $('#v-hooks').innerHTML = `<div class="tk"><div class="banner warn"><span class="ic2">!</span><div><b>Hooks run commands on your computer</b>Remove one here (Undo brings it back); to change one, edit the settings file it lives in. Claude can suggest removing hooks but never adds one.</div></div><div>` +
     (hooks.length ? [...EVENTS, ...extra].filter(([ev]) => hooks.some((h) => h.name === ev)).map(([ev, label]) => {
       const xs = hooks.filter((h) => h.name === ev);
-      return `<div class="hk"><div class="ev">${esc(ev)}<small>${esc(label)}</small></div><div class="items">${xs.map(item).join('')}</div></div>`;
+      return `<div class="hk"><div class="ev">${esc(label || ev)}${label ? `<small class="mono">${esc(ev)}</small>` : ''}</div><div class="items">${xs.map(item).join('')}</div></div>`;
     }).join('') : emptyHTML('No hooks', 'Hooks run a command at points in a session, like before Claude uses a tool. They live in settings.json.')) + '</div></div>';
   $$<HTMLButtonElement>('.hrm').forEach((b) => (b.onclick = () => void run('hook-remove',
     { path: b.dataset.path, event: b.dataset.ev, group: Number(b.dataset.g), pos: Number(b.dataset.pos) })));
@@ -896,7 +921,7 @@ function linkPicker(ta: HTMLTextAreaElement, dir: () => string, self?: Mem): voi
     if (box.hidden) return;
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && hits.length) { e.preventDefault(); sel = (sel + (e.key === 'ArrowDown' ? 1 : hits.length - 1)) % hits.length; paint(); }
     else if ((e.key === 'Enter' || e.key === 'Tab') && hits.length) { e.preventDefault(); pick(hits[sel]); }
-    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); } // closes only the list
   });
   box.onmousedown = (e) => { // mousedown, so the text box keeps focus
     e.preventDefault();
@@ -916,23 +941,23 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
     m.missing.length ? `<div class="notice"><div><b>Broken link.</b> Mentions ${m.missing.map((x) => '“' + esc(human(x)) + '”').join(', ')}, which ${m.missing.length > 1 ? "don't" : "doesn't"} exist.</div></div>` : '',
     m.badYaml ? '<div class="notice"><div><b>Header problem.</b> Claude may not read this memory’s description.</div></div>' : '',
   ].join('');
-  d.innerHTML = `<div class="dhead"><span class="navb"><button id="dback" aria-label="Previous memory" title="Previous memory" disabled><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button><button id="dfwd" aria-label="Next memory" title="Next memory" disabled><svg viewBox="0 0 16 16"><path d="m6 3 5 5-5 5"/></svg></button></span><div class="where"><span class="dot" style="background:${p.color}"></span>${esc(p.label)} · updated ${esc(fmtDate(m.modified))}${m.uses ? ` · opened ${m.uses}× (last ${esc(ago(m.lastUsed))})` : ' · never opened in 90 days'}</div><button class="x" id="dx" aria-label="Close">×</button></div>
+  d.innerHTML = `<div class="dhead"><span class="navb"><button id="dback" aria-label="Previous memory" title="Previous memory" disabled><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button><button id="dfwd" aria-label="Next memory" title="Next memory" disabled><svg viewBox="0 0 16 16"><path d="m6 3 5 5-5 5"/></svg></button></span><div class="where"><span class="dot" style="background:${p.color}"></span>${esc(p.label)}</div><button class="x" id="dx" aria-label="Close">×</button></div>
    ${TABS}
    <div class="dbody" id="d-edit">
-    <div class="field"><input class="title-in" id="f-title" value="${esc(m.title)}" aria-label="Title"><span class="hint" id="f-rename" hidden>Saving renames it${m.inn.length ? `, and updates ${m.inn.length === 1 ? 'the memory' : `the ${m.inn.length} memories`} that link to it` : ''}.</span></div>${notices}
+    <div class="field"><input class="title-in" id="f-title" value="${esc(m.title)}" aria-label="Title"><span class="hint">Updated ${esc(fmtDate(m.modified))} · ${m.uses ? `Claude opened it ${m.uses === 1 ? 'once' : `${m.uses} times`}, most recently ${esc(ago(m.lastUsed))}` : 'Claude hasn’t opened it in 90 days'}</span><span class="hint" id="f-rename" hidden>Saving renames it${m.inn.length ? `, and updates ${m.inn.length === 1 ? 'the memory' : `the ${m.inn.length} memories`} that link to it` : ''}.</span></div>${notices}
     <div class="field"><label for="f-kind">Kind</label><select id="f-kind">${Object.keys(KIND).map((k) => `<option value="${k}" ${k === m.type ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
     <div class="field"><label for="f-desc">One-line summary</label><input id="f-desc" value="${esc(m.desc)}" placeholder="What Claude sees in its index"><span class="hint">Claude reads this line every session to decide whether to open the full memory.</span></div>
     <div class="field"><div class="lrow"><label for="f-body">Details</label><button class="btn sm quiet" id="f-mode" hidden>Edit</button></div>
      <div class="rich" id="f-read"><span class="hint">Loading…</span></div><textarea id="f-body" spellcheck="true" hidden placeholder="Add details. Type [[ to link another memory."></textarea>
      <span class="hint" id="f-tip" hidden>Type [[ to link another memory.</span></div>
-    <div class="field"><label>Connections</label><div class="conn">${egoSVG(m)}<div class="cap"><span>${m.inn.length} mention this · ${m.out.length} mentioned here</span><span>Click a name to open it</span></div></div></div>
+    <div class="field"><label>Connections</label><div class="conn">${egoSVG(m)}${[...m.inn.slice(7), ...m.out.slice(7)].length ? `<div class="morel"><span class="hint">Also:</span>${[...new Set([...m.inn.slice(7), ...m.out.slice(7)])].map((t) => `<button type="button" class="lchip" data-id="${esc(t.id)}"><span class="dot" style="background:${model.projectOf(t.project).color}"></span>${esc(t.title)}</button>`).join('')}</div>` : ''}<div class="cap"><span>${m.inn.length} mention this · ${m.out.length} mentioned here</span><span>Click a name to open it</span></div></div></div>
     <div class="hint" style="font-family:var(--f-mono)">${esc(m.path.replace(model.state.home, '~'))}</div>
    </div>
    ${HIST}
    <div class="dfoot" id="f-edit"><button class="btn pri" id="dsave" disabled>Save</button>${m.project !== 'Global' ? '<button class="btn" id="dglobal">Use everywhere</button>' : ''}<span class="spacer"></span><button class="btn dng" id="ddel">Delete</button></div>`;
   d.classList.add('open');
   watchEdits(d);
-  $$('.eg', d).forEach((g) => (g.onclick = () => { const t = model.byId.get(g.dataset.id ?? ''); if (t) openMemory(t); }));
+  $$('.eg, .morel .lchip', d).forEach((g) => (g.onclick = () => { const t = model.byId.get(g.dataset.id ?? ''); if (t) openMemory(t); }));
   $('#dx').onclick = () => leave(closeDrawer);
   $('#dback').onclick = () => history.back(); // popstate opens it (asking first if there are unsaved edits)
   $('#dfwd').onclick = () => history.forward();
@@ -952,6 +977,8 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
     if (t) openMemory(t); else fixLink(b, m, b.dataset.miss ?? '');
   };
   linkPicker(ta, () => dirOf(m.path), m);
+  // Escape while editing goes back to the read view (edits kept), not out of the drawer.
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); showDetails(false); mode.focus(); } });
   $<HTMLInputElement>('#f-title').addEventListener('input', (e) => { $('#f-rename').hidden = (e.target as HTMLInputElement).value.trim() === m.title; });
   // Save stays off until the text arrives, so it can never write a placeholder or blank the file.
   void loadFile(m.path).then((f) => {
@@ -1049,7 +1076,7 @@ function openFile(e: Entry, tab: 'edit' | 'history' = 'edit', at = ''): void {
   d.innerHTML = `<div class="dhead"><div class="where">${esc(where)} · ${esc(e.kind === 'rule' ? 'rule' : 'instructions')} · ~${fmtN(Math.round((e.bytes ?? 0) / 4))} tokens</div><button class="x" id="dx" aria-label="Close">×</button></div>
    ${TABS}
    <div class="dbody" id="d-edit"><div class="field"><div class="title-in" style="padding:2px 0">${esc(e.name)}</div><span class="hint mono">${esc(path.replace(model.state.home, '~'))}</span></div>
-    <div class="field" style="flex:1"><label for="i-body">Text</label><textarea id="i-body" class="mono" style="min-height:360px" spellcheck="false" placeholder="Loading…" readonly></textarea>
+    <div class="field" style="flex:1"><label for="i-body">${esc(e.name)}</label><textarea id="i-body" class="mono" style="min-height:360px" spellcheck="false" placeholder="Loading…" readonly></textarea>
     <span class="hint">Claude reads this ${e.scope === 'user' ? 'in every project' : 'in this project'} at the start of a session. Saving keeps the previous version.</span></div></div>
    ${HIST}
    <div class="dfoot" id="f-edit">${plugin ? '<span class="hint">Comes with a plugin; edits would be replaced when it updates.</span>' : '<button class="btn pri" id="isave" disabled>Save</button>'}<span class="spacer"></span><button class="btn" id="ifind">${platform.show}</button></div>`;
@@ -1081,7 +1108,8 @@ const when = (iso: string): string => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const WHO: Record<string, [string, string]> = { you: ['You', 'You saved it'], claude: ['C', 'Claude changed it'], original: ['·', 'Earlier version'] };
+const WHO: Record<string, [string, string]> = { you: ['You', 'You saved it'], claude: ['C', 'Claude changed it'], original: ['·', 'First saved copy'] };
+
 
 /** The History tab of the open drawer: versions of path, newest first, with a diff and restore.
  *  still() says whether the drawer still shows this file; at preselects the version nearest a time. */
@@ -1090,7 +1118,7 @@ async function showHistory(path: string, still: () => boolean, at = ''): Promise
   let vs: Version[];
   try { vs = await loadVersions(path); } catch { box.innerHTML = '<div class="hint">Versions couldn’t be loaded.</div>'; return; }
   if (!still()) return;
-  if (!vs.length) { box.innerHTML = '<div class="empty">No earlier versions yet. cca keeps one every time this file changes, whether you or Claude changed it.</div>'; return; }
+  if (!vs.length) { box.innerHTML = '<div class="empty">No earlier versions yet. This app keeps one every time this file changes, whether you or Claude changed it.</div>'; return; }
   let sel = 0;
   if (at) { // the version saved closest to that moment
     const t = Date.parse(at);
@@ -1098,11 +1126,15 @@ async function showHistory(path: string, still: () => boolean, at = ''): Promise
   }
   const draw = (): void => {
     const v = vs[sel], older = vs[sel + 1];
-    const lines = older ? hunks(diffLines(older.content, v.content)) : [];
-    box.innerHTML = `<div style="display:grid;gap:2px">${vs.map((x, i) => { const [badge, label] = WHO[x.who] ?? WHO.original; return `<div class="ver" data-i="${i}" aria-selected="${i === sel}" tabindex="0"><span class="who ${x.who === 'you' ? 'you' : ''}">${badge}</span><b>${label}</b><small>${i === 0 ? 'Latest' : ''}</small><span class="when">${esc(when(x.at))}</span></div>`; }).join('')}</div>
-      <div class="field"><label>${older ? 'What changed in this version' : 'The first version cca saw'}</label><div class="diff2">${older
-        ? (lines.length ? lines.map((l) => `<div class="${l.op === '-' ? 'r' : l.op === '+' ? 'a' : 'c'}">${esc(l.op + ' ' + l.text)}</div>`).join('') : '<div class="c">No text changes.</div>')
-        : esc(v.content.slice(0, 1200)).split('\n').map((l) => `<div class="c">${l}</div>`).join('')}</div></div>`;
+    const cur = splitDoc(v.content), prev = older ? splitDoc(older.content) : null;
+    const lines = prev ? hunks(diffLines(prev.body, cur.body)) : [];
+    const was = new Map(prev?.fields ?? []);
+    const head = prev ? [...cur.fields.filter(([k, x]) => was.get(k) !== x).map(([k, x]) => `<div class="hchg"><b>${k}</b>${was.get(k) ? `<span class="old">${esc(was.get(k))}</span><span aria-hidden="true">→</span>` : ''}<span>${esc(x)}</span></div>`),
+      ...(prev.rest !== cur.rest ? ['<div class="hchg"><b>Header</b><span>Other details in the file’s header changed.</span></div>'] : [])].join('') : '';
+    box.innerHTML = `<div style="display:grid;gap:2px">${vs.map((x, i) => { const [badge, label] = WHO[x.who] ?? WHO.original; return `<div class="ver" data-i="${i}" aria-selected="${i === sel}" tabindex="0"><span class="who ${x.who === 'you' ? 'you' : ''}">${badge}</span><b>${label}</b><small>${i === 0 ? 'Current' : ''}</small><span class="when">${esc(when(x.at))}</span></div>`; }).join('')}</div>
+      <div class="field"><label>${older ? 'What changed in this version' : 'The first copy this app saved'}</label>${head}${older
+        ? `<div class="diff2">${lines.length ? lines.map((l) => `<div class="${l.op === '-' ? 'r' : l.op === '+' ? 'a' : 'c'}">${esc(l.op + ' ' + l.text)}</div>`).join('') : `<div class="c">${head ? 'The text didn’t change.' : 'No changes.'}</div>`}</div>`
+        : `${cur.fields.map(([k, x]) => `<div class="hchg"><b>${k}</b><span>${esc(x)}</span></div>`).join('')}<div class="rich">${richHTML(cur.body.slice(0, 4000), dirOf(path))}</div>`}</div>`;
     $$('.ver', box).forEach((x) => (x.onclick = () => { sel = Number(x.dataset.i); draw(); }));
     const restore = $<HTMLButtonElement>('#drestore');
     restore.disabled = sel === 0;
@@ -1126,7 +1158,7 @@ function openable(a: Activity): (() => void) | null {
 }
 
 async function renderActivity(): Promise<void> {
-  heading('Activity', 'Every change, by you or Claude. Undo any of them.');
+  heading('Activity', 'Every change, by you or Claude. Undo where a saved copy exists; History restores the rest.');
   const acts = await loadActivity().catch(() => []);
   if (ui.view !== 'activity') return;
   const day = (iso: string): string => {
@@ -1140,7 +1172,7 @@ async function renderActivity(): Promise<void> {
     const d = day(a.at), head = d !== lastDay ? `<div class="actday">${esc(d)}</div>` : '';
     lastDay = d;
     const target = openable(a);
-    return `${head}<div class="arow ${target ? 'go' : ''}" data-act="${esc(a.id)}" ${target ? 'tabindex="0" title="See what changed"' : ''} style="${a.undone ? 'opacity:.5' : ''}"><span class="who ${a.who === 'you' ? 'you' : ''}">${a.who === 'you' ? 'You' : 'C'}</span><div class="what">${esc(a.title)}${a.detail ? `<span>${esc(a.detail)}</span>` : ''}</div><time>${esc(time(a.at))}</time>${a.undone ? '<span class="hint">Undone</span>' : a.canUndo ? `<button class="btn sm" data-undo="${esc(a.id)}">Undo</button>` : '<span></span>'}</div>`;
+    return `${head}<div class="arow ${target ? 'go' : ''}" data-act="${esc(a.id)}" ${target ? 'tabindex="0" title="See what changed"' : ''} style="${a.undone ? 'opacity:.5' : ''}"><span class="who ${a.who === 'you' ? 'you' : ''}">${a.who === 'you' ? 'You' : 'C'}</span><div class="what">${esc(a.title)}${a.detail ? `<span>${esc(a.detail)}</span>` : ''}</div><time>${esc(time(a.at))}</time>${a.undone ? '<span class="hint">Undone</span>' : a.canUndo ? `<button class="btn sm" data-undo="${esc(a.id)}">Undo</button>` : '<span class="hint" title="There\'s no saved copy from before this change (Claude Code made it while this app wasn\'t running), or the file changed again since. Open it and use History to restore an earlier version.">Can\'t undo</span>'}</div>`;
   }).join('');
   $('#v-activity').innerHTML = `<div class="rv"><div class="act">${rows || '<div class="done">No changes yet. Edits you make here, and memory changes Claude makes while cca is open, show up in this list.</div>'}</div>
     <p class="hint" style="margin-top:14px">Claude’s own memory edits are recorded while cca is running, so you can always go back.</p></div>`;
@@ -1162,14 +1194,16 @@ function openTool(r: Row): void {
   const per = (e?.meta?.perComponent ?? {}) as Record<string, [number, number]>;
   const comps = Object.entries(per).map(([k, [a, o]]) => `<div class="bl" style="grid-template-columns:minmax(0,1fr) auto auto"><span>${esc(k)}</span><span class="tok">~${fmtN(a)}</span><span class="tok sub2">~${fmtN(o)} when used</span></div>`).join('');
   d.innerHTML = `<div class="dhead"><div class="where">${esc(r.source)}</div><button class="x" id="dx" aria-label="Close">×</button></div>
-   <div class="dbody"><div class="field"><div class="title-in" style="padding:2px 0">${esc(r.name)}</div><span class="hint">${esc(r.desc)}</span></div>
+   <div class="dbody"><div class="field"><div class="title-in" style="padding:2px 0">${esc(r.name)}</div>${e?.path && (e.kind === 'skill' || e.kind === 'command' || e.kind === 'agent') ? '' : `<span class="hint">${esc(r.desc)}</span>`}</div>
     <div class="budget" style="padding:14px"><div class="bl" style="border:0;grid-template-columns:minmax(0,1fr) auto"><span>Used in the last 90 days</span><span class="tok">${r.uses ? r.uses.toLocaleString() + ' times' : 'never'}</span></div>
      <div class="bl" style="grid-template-columns:minmax(0,1fr) auto"><span>Last used</span><span class="tok">${r.last ? esc(ago(r.last)) : '–'}</span></div>
      ${r.tokens !== undefined ? `<div class="bl" style="grid-template-columns:minmax(0,1fr) auto"><span>Cost ${esc(r.tokensLabel ?? '')}</span><span class="tok">~${fmtN(r.tokens)} tokens</span></div>` : ''}</div>
     ${comps ? `<div class="field"><label>What's inside</label><div class="blist">${comps}</div></div>` : ''}
-    ${r.tags.some((t) => t.includes('••')) ? '<div class="field"><label>Keys</label><span class="hint">Values are never read by this app or sent to Claude.</span></div>' : ''}
-    ${e?.kind === 'mcp' ? `<div class="field"><label>${e.meta?.url ? 'Connects to' : 'Runs'}</label><code class="cmdline">${esc(String(e.meta?.url ?? e.meta?.command ?? '–'))}</code><span class="hint">${esc(e.meta?.url ? 'Over the web' : 'A program on your computer')}${e.path ? ` · defined in ${esc(e.path.replace(model.state.home, '~'))}` : ''}</span></div>` : ''}
-    ${e?.path && (e.kind === 'skill' || e.kind === 'command' || e.kind === 'agent') ? `<div class="field"><label for="t-body">Instructions</label><textarea id="t-body" placeholder="Loading…" readonly></textarea></div>` : ''}
+    ${r.tags.some((t) => t.includes('••')) ? `<div class="field"><label>Keys</label><div class="comps">${r.tags.filter((t) => t.includes('••')).map((t) => `<span class="tag mono">${esc(t)}</span>`).join('')}</div><span class="hint">Values are never read by this app or sent to Claude.</span></div>` : ''}
+    ${e?.kind === 'mcp' ? `<div class="field"><label>${e.meta?.url ? 'Connects to' : 'Runs'}</label><code class="cmdline ro">${esc(String(e.meta?.url ?? e.meta?.command ?? '–'))}</code><span class="hint">${esc(e.meta?.url ? 'Over the web (the address without its query, which can hold keys)' : 'A program on your computer (its arguments aren’t shown: they can hold keys)')}${e.path ? ` · defined in ${esc(e.path.replace(model.state.home, '~'))}` : ''}</span></div>` : ''}
+    ${e?.path && (e.kind === 'skill' || e.kind === 'command' || e.kind === 'agent') ? `<div class="field"><label for="t-desc">When Claude uses it</label><input id="t-desc" placeholder="Loading…" readonly><span class="hint" id="t-deschint">Claude reads this to decide when to use it.</span></div>
+     <div class="field" id="t-other" hidden><label>Other settings</label><code class="cmdline ro" id="t-otherv"></code><span class="hint">Change these with Edit as file.</span></div>
+     <div class="field"><div class="lrow"><label for="t-ins">Instructions</label><button class="btn sm quiet" id="t-raw" hidden>Edit as file</button></div><textarea id="t-ins" placeholder="Loading…" readonly style="min-height:240px"></textarea><textarea id="t-body" class="mono" hidden style="min-height:320px" spellcheck="false" aria-label="The whole file"></textarea></div>` : ''}
     ${r.readonly ? `<div class="notice"><div>Managed by ${esc(r.source.replace('From plugin · ', 'the plugin ').replace('claude.ai connector', 'claude.ai settings'))}. Turn it off there.</div>${r.source.startsWith('From plugin') ? '<button class="btn sm" id="toplugins">Open Plugins</button>' : ''}</div>` : ''}
    </div>
    <div class="dfoot">${r.readonly || !e?.path || e.kind === 'plugin' || e.kind === 'mcp' ? '' : '<button class="btn pri" id="tsave" disabled>Save</button>'}${e?.scope === 'project' && (e.kind === 'skill' || e.kind === 'command') ? '<button class="btn" id="tglobal">Use everywhere</button>' : ''}<span class="spacer"></span>${r.readonly ? '' : `<button class="btn dng" id="tdel">${e?.kind === 'plugin' ? 'Uninstall' : 'Remove'}</button>`}</div>`;
@@ -1178,13 +1212,31 @@ function openTool(r: Row): void {
   watchEdits(d);
   $('#dx').onclick = () => leave(closeDrawer);
   document.getElementById('toplugins')?.addEventListener('click', () => leave(() => { closeDrawer(); setView('plugins'); }));
-  const ta = document.getElementById('t-body') as HTMLTextAreaElement | null;
+  const ta = document.getElementById('t-body') as HTMLTextAreaElement | null; // the whole file (Edit as file)
   const save = document.getElementById('tsave') as HTMLButtonElement | null;
-  if (ta && e?.path) void loadFile(e.path).then((f) => {
-    ta.value = f.content; ta.placeholder = ''; ta.readOnly = r.readonly; if (save) save.disabled = false;
-  }).catch(() => { ta.placeholder = 'Couldn’t read this file. Close it and try again.'; });
+  let doc: ToolDoc | null = null;
+  const desc = document.getElementById('t-desc') as HTMLInputElement | null, ins = document.getElementById('t-ins') as HTMLTextAreaElement | null;
+  const content = (): string => (!ta || !doc ? '' : !ta.hidden ? ta.value : composeTool(doc, desc?.value ?? '', ins?.value ?? ''));
+  if (ta && desc && ins && e?.path) void loadFile(e.path).then((f) => {
+    doc = splitTool(f.content);
+    ta.value = f.content;
+    desc.value = doc.desc ?? ''; desc.placeholder = doc.desc === null ? '' : 'Say when Claude should use it';
+    if (doc.desc === null) $('#t-deschint').textContent = doc.di === -2 ? 'This file has no description.' : 'Written in a form this editor can’t change safely: use Edit as file.';
+    ins.value = doc.body; ins.placeholder = '';
+    if (doc.others.length) { $('#t-other').hidden = false; $('#t-otherv').textContent = doc.others.join('\n'); }
+    desc.readOnly = r.readonly || doc.desc === null; ins.readOnly = r.readonly; ta.readOnly = r.readonly;
+    const raw = $<HTMLButtonElement>('#t-raw');
+    raw.hidden = r.readonly;
+    raw.onclick = () => { // one source of truth at a time: carry the form's edits into the file text
+      const toFile = ta.hidden;
+      if (toFile) ta.value = content(); else { doc = splitTool(ta.value); desc.value = doc.desc ?? ''; ins.value = doc.body; }
+      ta.hidden = !toFile; ins.hidden = toFile; desc.closest<HTMLElement>('.field')!.hidden = toFile; $('#t-other').hidden = toFile || !doc?.others.length;
+      raw.textContent = toFile ? 'Back to the form' : 'Edit as file';
+    };
+    if (save) save.disabled = false;
+  }).catch(() => { if (ins) ins.placeholder = 'Couldn’t read this file. Close it and try again.'; });
   let seen = e?.modified ?? '';
-  if (save) save.onclick = () => void (ta && e?.path ? run('file-save', { path: e.path, content: ta.value, seen }).then((ok) => {
+  if (save) save.onclick = () => void (ta && doc && e?.path ? run('file-save', { path: e.path, content: content(), seen }).then((ok) => {
     if (ok) seen = model.state.entries.find((x) => x.path === e.path)?.modified ?? seen; // so a second save isn't a false conflict
   }) : Promise.resolve(false));
   const mg = document.getElementById('tglobal');
@@ -1212,21 +1264,24 @@ function openNewMemory(): void {
   const d = $('#drawer');
   d.innerHTML = `<div class="dhead"><div class="where">New memory</div><button class="x" id="dx" aria-label="Close">×</button></div>
    <div class="dbody">
-    <div class="field"><input class="title-in" id="n-title" placeholder="Title" aria-label="Title"></div>
+    <div class="field"><input class="title-in" id="n-title" placeholder="Title" aria-label="Title" aria-describedby="n-err"><span class="err" id="n-err" hidden>Give the memory a title.</span></div>
     <div class="field"><label for="n-proj">Loads in</label><select id="n-proj">${targets.map((p) => `<option value="${esc(p.key)}" ${p.key === start ? 'selected' : ''}>${esc(p.key === GLOBAL ? 'Everywhere (every project)' : p.label)}</option>`).join('')}</select></div>
     <div class="field"><label for="n-kind">Kind</label><select id="n-kind">${Object.keys(KIND).map((k) => `<option value="${k}" ${k === 'feedback' ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
     <div class="field"><label for="n-desc">One-line summary</label><input id="n-desc" placeholder="What Claude sees in its index"></div>
-    <div class="field"><label for="n-body">Details</label><textarea id="n-body" placeholder="The rule or fact, then **Why:** and **How to apply:**"></textarea><span class="hint">Type [[ to link another memory.</span></div>
+    <div class="field"><label for="n-body">Details</label><textarea id="n-body" placeholder="The rule or fact. Then why it matters, and how to apply it."></textarea><span class="hint">Type [[ to link another memory.</span></div>
    </div>
    <div class="dfoot"><button class="btn pri" id="ncreate">Create</button><span class="spacer"></span></div>`;
   d.classList.add('open');
   watchEdits(d);
   $('#dx').onclick = () => leave(closeDrawer);
   ($('#n-title') as HTMLInputElement).focus();
+  $('#n-title').addEventListener('input', () => { $('#n-err').hidden = true; $('#n-title').removeAttribute('aria-invalid'); });
   linkPicker($<HTMLTextAreaElement>('#n-body'), () => memoryDirFor($<HTMLSelectElement>('#n-proj').value));
   $('#ncreate').onclick = () => {
     const title = ($('#n-title') as HTMLInputElement).value.trim();
-    if (!title) { toast('Give the memory a title first.'); return; }
+    const err = $('#n-err'), ti = $<HTMLInputElement>('#n-title');
+    err.hidden = !!title; ti.setAttribute('aria-invalid', String(!title));
+    if (!title) { ti.focus(); return; }
     const dir = memoryDirFor($<HTMLSelectElement>('#n-proj').value);
     void run('memory-create', { dir, title, type: ($('#n-kind') as HTMLSelectElement).value,
       description: ($('#n-desc') as HTMLInputElement).value, body: ($('#n-body') as HTMLTextAreaElement).value }).then((ok) => {
@@ -1327,6 +1382,8 @@ function boot(): void {
   }));
   $('#mnav').innerHTML = $$('#nav button, #nav2 button').map((b) => `<button data-v="${b.dataset.v}">${esc(b.textContent?.replace(/\d+$/, '').trim())}</button>`).join('');
   $$('#mnav button').forEach((b) => (b.onclick = () => setView(b.dataset.v as View)));
+  const mnav = $('#mnav'), fade = (): void => { mnav.classList.toggle('more', mnav.scrollLeft + mnav.clientWidth < mnav.scrollWidth - 4); };
+  mnav.addEventListener('scroll', fade, { passive: true }); addEventListener('resize', fade); requestAnimationFrame(fade);
   $('#mnav').insertAdjacentHTML('afterbegin', '<select id="mscope" aria-label="Scope"></select>');
   $('#mnav').insertAdjacentHTML('beforeend', `<button class="gear" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false">${$('#gear').innerHTML}</button>`);
   $('#newmem').onclick = openNewMemory;
