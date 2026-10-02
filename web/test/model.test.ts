@@ -39,3 +39,12 @@ test('resolve: own folder first, then Everywhere; by slug or file name; .md and 
   expect(launch.slug).toBe('launch');
   expect(m.linkable(app).map((x) => x.stem).sort()).toEqual(['feedback_style', 'project_launch', 'reference_dup', 'reference_dup']);
 });
+
+import { commandText } from '../src/add';
+
+test('commandText: a usual install command reads as a command line; anything else stays exact', () => {
+  expect(commandText({ command: 'npx', args: ['-y', 'some pkg', "it's"], sha256: 'x' })).toBe(`npx -y 'some pkg' 'it'\\''s'`);
+  expect(commandText({ command: 'sh', args: ['install.sh'], cwd: '/tmp/p' })).toBe('sh install.sh\ncwd: /tmp/p');
+  expect(commandText({ run: ['a', 'b'] })).toBe(JSON.stringify({ run: ['a', 'b'] }, null, 2));
+  expect(commandText({ command: 'x', args: [1] })).toBe(JSON.stringify({ command: 'x', args: [1] }, null, 2));
+});

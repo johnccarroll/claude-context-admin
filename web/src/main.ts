@@ -57,6 +57,8 @@ async function refresh(): Promise<void> {
 
 /** Set when the user types in the open drawer; cleared when a drawer opens or a change succeeds. */
 let dirty = false;
+/** Marks the open drawer as having unsaved edits (Save shows a dot) or not. */
+function setDirty(v: boolean): void { dirty = v; $('#drawer').classList.toggle('dirty', v); }
 const drawerOpen = (): boolean => $('#drawer').classList.contains('open');
 
 /** Runs then() now, or after the user agrees to drop unsaved edits in the open drawer. */
@@ -71,11 +73,11 @@ function leave(then: () => void): void {
     history.replaceState({ n: navPos }, '', hashNow()); // Back already changed the address: put it back
     focus?.focus();
   };
-  $('#ldrop').onclick = () => { dirty = false; d.querySelector('.leavebar')?.remove(); then(); };
+  $('#ldrop').onclick = () => { setDirty(false); d.querySelector('.leavebar')?.remove(); then(); };
   $<HTMLButtonElement>('#lkeep').focus();
 }
 addEventListener('beforeunload', (e) => { if (dirty && drawerOpen()) e.preventDefault(); });
-const watchEdits = (d: HTMLElement): void => { dirty = false; d.oninput = () => { dirty = true; }; };
+const watchEdits = (d: HTMLElement): void => { setDirty(false); d.oninput = () => setDirty(true); };
 
 /** The ops an open editor sends to save itself; any other change leaves its unsaved text alone. */
 const SAVES = new Set(['memory-save', 'file-save', 'memory-create', 'restore']);
@@ -83,7 +85,7 @@ const SAVES = new Set(['memory-save', 'file-save', 'memory-create', 'restore']);
 async function run(op: string, args: Record<string, unknown>, done?: string): Promise<boolean> {
   if (model.state.readOnly) { toast('Read-only mode: start cca without --read-only to make changes.'); return false; }
   const r = await act(op, args);
-  if (r.ok) { if (SAVES.has(op)) dirty = false; await refresh(); }
+  if (r.ok) { if (SAVES.has(op)) setDirty(false); await refresh(); }
   const id = r.activity;
   toast(r.ok ? done ?? r.message : r.message, r.ok && r.canUndo && id ? () => void undoChange(id) : undefined);
   return r.ok;
@@ -917,7 +919,7 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
   d.innerHTML = `<div class="dhead"><span class="navb"><button id="dback" aria-label="Previous memory" title="Previous memory" disabled><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button><button id="dfwd" aria-label="Next memory" title="Next memory" disabled><svg viewBox="0 0 16 16"><path d="m6 3 5 5-5 5"/></svg></button></span><div class="where"><span class="dot" style="background:${p.color}"></span>${esc(p.label)} · updated ${esc(fmtDate(m.modified))}${m.uses ? ` · opened ${m.uses}× (last ${esc(ago(m.lastUsed))})` : ' · never opened in 90 days'}</div><button class="x" id="dx" aria-label="Close">×</button></div>
    ${TABS}
    <div class="dbody" id="d-edit">
-    <div class="field"><input class="title-in" id="f-title" value="${esc(m.title)}" aria-label="Title"></div>${notices}
+    <div class="field"><input class="title-in" id="f-title" value="${esc(m.title)}" aria-label="Title"><span class="hint" id="f-rename" hidden>Saving renames it${m.inn.length ? `, and updates ${m.inn.length === 1 ? 'the memory' : `the ${m.inn.length} memories`} that link to it` : ''}.</span></div>${notices}
     <div class="field"><label for="f-kind">Kind</label><select id="f-kind">${Object.keys(KIND).map((k) => `<option value="${k}" ${k === m.type ? 'selected' : ''}>${KIND[k]} · ${KHELP[k]}</option>`).join('')}</select></div>
     <div class="field"><label for="f-desc">One-line summary</label><input id="f-desc" value="${esc(m.desc)}" placeholder="What Claude sees in its index"><span class="hint">Claude reads this line every session to decide whether to open the full memory.</span></div>
     <div class="field"><div class="lrow"><label for="f-body">Details</label><button class="btn sm quiet" id="f-mode" hidden>Edit</button></div>
@@ -950,6 +952,7 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
     if (t) openMemory(t); else fixLink(b, m, b.dataset.miss ?? '');
   };
   linkPicker(ta, () => dirOf(m.path), m);
+  $<HTMLInputElement>('#f-title').addEventListener('input', (e) => { $('#f-rename').hidden = (e.target as HTMLInputElement).value.trim() === m.title; });
   // Save stays off until the text arrives, so it can never write a placeholder or blank the file.
   void loadFile(m.path).then((f) => {
     if (ui.open?.id !== m.id) return;
@@ -1165,7 +1168,7 @@ function openTool(r: Row): void {
      ${r.tokens !== undefined ? `<div class="bl" style="grid-template-columns:minmax(0,1fr) auto"><span>Cost ${esc(r.tokensLabel ?? '')}</span><span class="tok">~${fmtN(r.tokens)} tokens</span></div>` : ''}</div>
     ${comps ? `<div class="field"><label>What's inside</label><div class="blist">${comps}</div></div>` : ''}
     ${r.tags.some((t) => t.includes('••')) ? '<div class="field"><label>Keys</label><span class="hint">Values are never read by this app or sent to Claude.</span></div>' : ''}
-    ${e?.kind === 'mcp' ? `<div class="field"><label>${e.meta?.url ? 'Connects to' : 'Runs'}</label><code class="cmdline">${esc(String(e.meta?.url ?? e.meta?.command ?? '–'))}</code><span class="hint">${esc(String(e.meta?.transport ?? ''))}${e.path ? ` · defined in ${esc(e.path.replace(model.state.home, '~'))}` : ''}</span></div>` : ''}
+    ${e?.kind === 'mcp' ? `<div class="field"><label>${e.meta?.url ? 'Connects to' : 'Runs'}</label><code class="cmdline">${esc(String(e.meta?.url ?? e.meta?.command ?? '–'))}</code><span class="hint">${esc(e.meta?.url ? 'Over the web' : 'A program on your computer')}${e.path ? ` · defined in ${esc(e.path.replace(model.state.home, '~'))}` : ''}</span></div>` : ''}
     ${e?.path && (e.kind === 'skill' || e.kind === 'command' || e.kind === 'agent') ? `<div class="field"><label for="t-body">Instructions</label><textarea id="t-body" placeholder="Loading…" readonly></textarea></div>` : ''}
     ${r.readonly ? `<div class="notice"><div>Managed by ${esc(r.source.replace('From plugin · ', 'the plugin ').replace('claude.ai connector', 'claude.ai settings'))}. Turn it off there.</div>${r.source.startsWith('From plugin') ? '<button class="btn sm" id="toplugins">Open Plugins</button>' : ''}</div>` : ''}
    </div>
@@ -1244,7 +1247,7 @@ function openAddDrawer(start: 'mcp' | 'plugin' | 'skill' = 'mcp'): void {
   openAdd(d, {
     model: () => model, scope: () => ui.proj, readOnly: () => model.state.readOnly,
     done: async (msg, activity) => {
-      dirty = false;
+      setDirty(false);
       closeDrawer();
       await refresh();
       toast(msg, activity ? () => void undoChange(activity) : undefined);
@@ -1351,7 +1354,7 @@ function boot(): void {
     }
     if ((e.metaKey || e.ctrlKey) && e.key === 's' && $('#drawer').classList.contains('open')) {
       e.preventDefault();
-      document.querySelector<HTMLButtonElement>('#dsave, #tsave, #isave, #ncreate')?.click();
+      document.querySelector<HTMLButtonElement>('#dsave, #tsave, #isave, #ncreate, #a-install, #s-create, #capply, #drawer [data-add]')?.click();
     }
   });
   addEventListener('resize', () => { setDrawerWidth(prefs.drawerWidth ?? DW); if (ui.view === 'map') VIEW_RENDER.map?.(); });

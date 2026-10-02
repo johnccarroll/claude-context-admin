@@ -16,6 +16,15 @@ export interface AddHooks {
 const EXAMPLE = '{\n  "mcpServers": {\n    "playwright": { "command": "npx", "args": ["@playwright/mcp@latest"] }\n  }\n}';
 /** The environment variable a key reads from, as the server names it (API key → API_KEY). */
 const envName = (k: string): string => k.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+/** A plugin's install command as a command line when it has the usual { command, args } shape, plus
+ *  every other field; anything else stays exact JSON. The user must see all of what will run. */
+export function commandText(c: Record<string, unknown>): string {
+  const { command, args, ...rest } = c;
+  if (typeof command !== 'string' || (args !== undefined && !(Array.isArray(args) && args.every((x) => typeof x === 'string')))) return JSON.stringify(c, null, 2);
+  const q = (x: string): string => (/^[\w@%+=:,./-]+$/.test(x) ? x : `'${x.replace(/'/g, `'\\''`)}'`);
+  const extra = Object.entries(rest).filter(([k]) => k !== 'sha256').map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`);
+  return [[command, ...((args as string[] | undefined) ?? [])].map(q).join(' '), ...extra].join('\n');
+}
 const SCOPES: [string, string][] = [
   ['user', 'Everywhere: every project, just you'],
   ['project', 'This project, shared: saved in the repo for everyone'],
@@ -59,7 +68,7 @@ export function openAdd(d: HTMLElement, h: AddHooks, start: 'mcp' | 'plugin' | '
   // re-runs the install with its sha256.
   const confirmCommand = (msg: string, c: { sha256: string; command: Record<string, unknown> }, ok: () => void): void => {
     preview.insertAdjacentHTML('beforeend', `<div class="banner warn" id="a-confirm"><span class="ic2">!</span><div style="min-width:0"><b>This plugin installs by running a command</b>${esc(msg)}
-      <pre class="diff2" style="margin-top:8px;padding:8px 12px;white-space:pre-wrap">${esc(JSON.stringify(c.command, null, 2))}</pre>
+      <pre class="diff2" style="margin-top:8px;padding:8px 12px;white-space:pre-wrap">${esc(commandText(c.command))}</pre>
       <div style="display:flex;gap:8px;margin-top:8px"><button class="btn dng" id="a-run">Run it and install</button><button class="btn" id="a-no">Don't install</button></div></div></div>`);
     $('#a-run', d).onclick = () => { $('#a-confirm', d).remove(); ok(); };
     $('#a-no', d).onclick = () => $('#a-confirm', d).remove();
@@ -74,8 +83,8 @@ export function openAdd(d: HTMLElement, h: AddHooks, start: 'mcp' | 'plugin' | '
           ${ref ? '<span class="hint">from your environment</span>' : secret ? `<button class="link2" data-ref="${esc(k)}" data-kind="${kind}" title="Use \${${esc(envName(k))}}">Use env var</button>` : '<span></span>'}</div>`;
       }).join('')}</div></div>`;
     return `<div class="addcard" data-i="${i}">
-      <div class="field"><label>Name</label><input data-name value="${esc(s.name)}" placeholder="letters, numbers, - and _" spellcheck="false"></div>
-      <div class="field"><label>${s.type === 'stdio' ? 'Runs on your computer' : `Connects to (${esc(s.type)})`}</label><code class="cmdline">${esc(s.type === 'stdio' ? [s.command, ...(s.args ?? [])].join(' ') : s.url)}</code></div>
+      <div class="field"><label>Name</label><input data-name value="${esc(s.name)}" spellcheck="false" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{0,63}"><span class="hint">Letters, numbers, - and _. This is how you'll see it in Claude Code.</span></div>
+      <div class="field"><label>${s.type === 'stdio' ? 'Runs on your computer' : 'Connects over the web to'}</label><code class="cmdline">${esc(s.type === 'stdio' ? [s.command, ...(s.args ?? [])].join(' ') : s.url)}</code></div>
       ${kv('Environment', s.env, 'env')}${kv('Headers', s.headers, 'hdr')}
       ${literal.length ? `<div class="banner warn"><span class="ic2">⚿</span><div><b>${literal.length === 1 ? 'A key is' : 'Keys are'} written out in full</b>Choose “Use env var” for ${esc(literal.join(', '))}, then add <code>export NAME=your-key</code> to your shell profile and restart Claude Code. A key written out would sit in plain text in Claude Code's config, and be visible to other programs while it's saved.</div></div>` : ''}
       ${scopeField('a-scope-' + i, ['user', 'project', 'local'])}
