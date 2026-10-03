@@ -13,6 +13,7 @@ test:
 check: test
 	git ls-files -z '*.go' | xargs -0 gofmt -l | (! grep .)
 	go vet ./...
+	go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
 # Live dev server: UI edits reload the page, Go edits restart cca (see scripts/dev.sh).
 dev:

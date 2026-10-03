@@ -36,5 +36,9 @@ jobs:
           go vet ./...
           go test -race ./...
           cd web && bunx tsc --noEmit && bun test
+      - name: Known vulnerabilities (govulncheck)
+        # The Go team's scanner: fails only when our code can reach a vulnerable function, in a
+        # dependency or the Go standard library. Pinned; bump it with the Go toolchain.
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
       - name: Linux smoke (serve, freedesktop Trash, undo)
         run: go build -o cca ./cmd/cca && scripts/linux-smoke.sh
