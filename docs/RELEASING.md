@@ -64,9 +64,10 @@ release's.
 
 ## If a key leaks
 
-- **Developer ID:** revoke the certificate (developer.apple.com → Certificates), which invalidates
-  every signature it made; create a new one; redo the `MACOS_CERT_*` secrets. Apple's notary
-  history lists every submission.
+- **Developer ID:** only Apple Developer Program Support can revoke it (developer.apple.com/support;
+  Xcode, the portal and the API all refuse), which invalidates every signature it made. Create a
+  new one (portal → Developer ID Application → **G2 Sub-CA**; only the Account Holder can) and
+  redo the `MACOS_CERT_*` secrets. Apple's notary history lists every submission.
 - **Notary key:** revoke it in App Store Connect → Users and Access → Integrations; make a new
   Developer-role key.
 - **Tap deploy key:** delete it in the tap's Settings → Deploy keys; check the tap's history.
