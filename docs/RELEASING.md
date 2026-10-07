@@ -46,7 +46,7 @@ repositories; the macOS jobs never run from a private copy.
    "Require two-factor authentication and disallow bypass 2fa tokens". No npm token exists.
 4. **Secrets.** `scripts/repo-setup.sh secrets` asks for each one (hidden) and hands it to `gh`,
    which encrypts it before upload:
-   - `release`: `MACOS_CERT_P12` (Keychain Access → "Developer ID Application: John Carroll" →
+   - `release`: `MACOS_CERT_P12` (Keychain Access → "Developer ID Application: JC Technologies LLC" (the G2 one) →
      Export as .p12), `MACOS_CERT_PASSWORD`, `NOTARY_KEY_P8`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`
      (an App Store Connect team API key with the **Developer** role: it can notarize and nothing
      else).
@@ -81,7 +81,7 @@ scripts/build-mac-app.sh 0.1.0  # the app → dist/mac; with CCA_SIGN_ID and CCA
 
 A Mac set up once for local signing: `xcrun notarytool store-credentials cca-notary` with an App
 Store Connect key, then
-`CCA_SIGN_ID="Developer ID Application: John Carroll (JZZSSM8VY6)" CCA_NOTARY=cca-notary`.
+`CCA_SIGN_ID="Developer ID Application: JC Technologies LLC (JZZSSM8VY6)" CCA_NOTARY=cca-notary`.
 
 ## Verify on a clean machine
 
