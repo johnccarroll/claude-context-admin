@@ -60,9 +60,8 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at
-through a private report at
-https://github.com/johnccarroll/claude-context-admin/security/advisories/new, which only the
-maintainer can read.
+https://github.com/johnccarroll/claude-context-admin/security/advisories/new
+(a private report that only the maintainer can read).
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the
