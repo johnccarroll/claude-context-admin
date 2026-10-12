@@ -120,7 +120,7 @@ files itself.
   shown, and a plugin that installs by running a command shows you that command first.
 - Every change is scanned by CodeQL and by Go's vulnerability checker (again daily), and a test
   fails the build if the code gains any network use beyond 127.0.0.1. Releases are signed,
-  notarized and carry build provenance (`gh attestation verify`).
+  notarized, carry build provenance (`gh attestation verify`) and ship with an SBOM.
 - When a Claude Code update changes something cca relies on, the app says which feature is
   affected instead of showing wrong numbers.
 

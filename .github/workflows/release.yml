@@ -92,6 +92,16 @@ jobs:
       - name: Test # after Build: release.sh built the web bundle the tests embed
         run: go test ./...
 
+      - name: SBOM
+        # GitHub's dependency graph for this repo (Go modules, the web UI's packages, the pinned
+        # actions) as SPDX. Written once, here, so re-run jobs publish the same bytes.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/dependency-graph/sbom" --jq .sbom > "dist/release/$VERSION/claude-context-admin-$VERSION.sbom.spdx.json"
+          test -s "dist/release/$VERSION/claude-context-admin-$VERSION.sbom.spdx.json"
+
       - name: Fingerprint the files
         id: manifest
         env:
@@ -277,7 +287,8 @@ jobs:
             (cd cli/npm && npm pack "./claude-context-admin-darwin-$d" --silent >/dev/null)
           done
           mkdir release
-          cp cli/archives/*.tar.gz "signed/ClaudeContextAdmin-$VERSION-macos.zip" cli/THIRD_PARTY_NOTICES.txt release/
+          cp cli/archives/*.tar.gz "signed/ClaudeContextAdmin-$VERSION-macos.zip" cli/THIRD_PARTY_NOTICES.txt \
+            "cli/claude-context-admin-$VERSION.sbom.spdx.json" release/
           (cd release && sha256sum ./*.tar.gz ./*.zip > checksums.txt)
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
