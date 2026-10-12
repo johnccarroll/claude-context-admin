@@ -1,6 +1,6 @@
 # Contributing
 
-Issues and pull requests are welcome. For a vulnerability, use the private report in
+Issues and pull requests are welcome, under the [code of conduct](CODE_OF_CONDUCT.md). For a vulnerability, use the private report in
 [SECURITY.md](SECURITY.md), not an issue.
 
 ## Build and test

@@ -9,7 +9,7 @@ its GitHub release notes, where line breaks show, so each entry is one line.
 - CI runs the real binary in a network namespace that has only loopback: it must work with no network, listen on 127.0.0.1 only and never try to reach anything else.
 - CI and the daily canary run `bun audit` on the web UI's packages.
 
-0.1.4 was tagged but never published: its publish job stopped before releasing anything.
+There is no 0.1.4: its publish job stopped before releasing anything.
 
 ## 0.1.3 (2026-10-12)
 
