@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+import uuid
 from datetime import datetime, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -107,9 +108,13 @@ def main():
     epoch = int(os.environ.get("SOURCE_DATE_EPOCH") or run("git", "log", "-1", "--format=%ct").strip())
     app = "pkg:github/johnccarroll/claude-context-admin@v" + version
     components = go_components(sys.argv[2:]) + web_components()
+    # Derived from the commit, like the timestamp. GitHub's attestation action only accepts a
+    # CycloneDX file that has a serial number.
+    serial = uuid.uuid5(uuid.NAMESPACE_URL, app + "#" + run("git", "rev-parse", "HEAD").strip())
     json.dump({
         "bomFormat": "CycloneDX",
         "specVersion": "1.6",
+        "serialNumber": "urn:uuid:" + str(serial),
         "version": 1,
         "metadata": {
             "timestamp": datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
