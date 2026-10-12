@@ -69,11 +69,11 @@ for env in release publish; do
 done
 
 # Actions: read-only token by default, no PR approvals by Actions, only GitHub's own actions plus
-# the one third-party action we use, every action pinned to a full commit SHA, and workflows from
+# the two third-party actions we use, every action pinned to a full commit SHA, and workflows from
 # outside contributors' forks wait for approval.
 api -X PUT "repos/$REPO/actions/permissions" -F enabled=true -f allowed_actions=selected -F sha_pinning_required=true
 api -X PUT "repos/$REPO/actions/permissions/selected-actions" --input - <<<'{"github_owned_allowed":true,
-  "verified_allowed":false,"patterns_allowed":["oven-sh/setup-bun@*"]}'
+  "verified_allowed":false,"patterns_allowed":["oven-sh/setup-bun@*","ossf/scorecard-action@*"]}'
 api -X PUT "repos/$REPO/actions/permissions/workflow" -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false
 api -X PUT "repos/$REPO/actions/permissions/fork-pr-contributor-approval" -f approval_policy=all_external_contributors
 echo "actions policy set"

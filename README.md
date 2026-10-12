@@ -2,6 +2,8 @@
 
 **See what Claude remembers. Keep it true.**
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/johnccarroll/claude-context-admin/badge)](https://scorecard.dev/viewer/?uri=github.com/johnccarroll/claude-context-admin)
+
 Claude Code loads a lot before you type: memories, CLAUDE.md and AGENTS.md, rules, skills,
 plugins, MCP servers and hooks, spread across your home folder and every repo. Claude Context
 Admin puts all of it in one local app. It shows what loads in each project and what it costs,
