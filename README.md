@@ -2,7 +2,9 @@
 
 **See what Claude remembers. Keep it true.**
 
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/johnccarroll/claude-context-admin/badge)](https://scorecard.dev/viewer/?uri=github.com/johnccarroll/claude-context-admin)
+[![test](https://github.com/johnccarroll/claude-context-admin/actions/workflows/test.yml/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/test.yml)
+[![CodeQL](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql)
+[![canary](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml)
 
 Claude Code loads a lot before you type: memories, CLAUDE.md and AGENTS.md, rules, skills,
 plugins, MCP servers and hooks, spread across your home folder and every repo. Claude Context
@@ -116,6 +118,9 @@ files itself.
 - Plugin and MCP changes go through Claude Code's own `claude` command, which also does any
   downloading when you install a plugin. MCP keys and other secret values are never read or
   shown, and a plugin that installs by running a command shows you that command first.
+- Every change is scanned by CodeQL and by Go's vulnerability checker (again daily), and a test
+  fails the build if the code gains any network use beyond 127.0.0.1. Releases are signed,
+  notarized and carry build provenance (`gh attestation verify`).
 - When a Claude Code update changes something cca relies on, the app says which feature is
   affected instead of showing wrong numbers.
 
