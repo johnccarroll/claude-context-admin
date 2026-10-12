@@ -22,8 +22,10 @@ cask "claude-context-admin" do
 
   depends_on macos: :ventura
 
-  app "Claude Context Admin.app"
-  binary "#{appdir}/Claude Context Admin.app/Contents/Resources/cca"
+  # Without admin rights /Applications is read-only and Homebrew would ask for sudo.
+  dir = (File.exist?(appdir) && !File.writable?(appdir)) ? Pathname("~/Applications").expand_path : appdir
+  app "Claude Context Admin.app", target: "#{dir}/Claude Context Admin.app"
+  binary "#{dir}/Claude Context Admin.app/Contents/Resources/cca"
 
   uninstall quit: "dev.johncarroll.claude-context-admin"
 

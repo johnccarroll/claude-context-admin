@@ -69,6 +69,7 @@ brew install --cask johnccarroll/tap/claude-context-admin
 A native Mac app, signed with a Developer ID and notarized by Apple. It also puts the `cca`
 command on your PATH. Closing the window keeps it running in the menu bar, so it can record
 memory changes Claude makes; Quit stops it. macOS 13 or later, Apple Silicon or Intel.
+Without admin rights the app goes to `~/Applications` instead, so no password is needed.
 
 **macOS or Linux (including WSL): in the browser**
 
