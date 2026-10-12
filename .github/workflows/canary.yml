@@ -1,7 +1,8 @@
 name: canary
 
 # Every day against the newest Claude Code: catches a release that changes what cca reads
-# before users notice. A failed scheduled run emails the repo owner.
+# before users notice. It also re-checks for known vulnerabilities, since advisories land between
+# pushes. A failed scheduled run emails the repo owner.
 on:
   schedule:
     - cron: "17 13 * * *" # 09:17 US Eastern (EDT)
@@ -32,3 +33,6 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code@latest
       - name: cca doctor against it
         run: scripts/canary.sh
+      - name: Known vulnerabilities (govulncheck)
+        if: always() # report both: a Claude Code change must not hide a new advisory
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
