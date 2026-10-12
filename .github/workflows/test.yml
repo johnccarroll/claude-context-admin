@@ -40,5 +40,9 @@ jobs:
         # The Go team's scanner: fails only when our code can reach a vulnerable function, in a
         # dependency or the Go standard library. Pinned; bump it with the Go toolchain.
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
-      - name: Linux smoke (serve, freedesktop Trash, undo)
-        run: go build -o cca ./cmd/cca && scripts/linux-smoke.sh
+      - name: Known vulnerabilities in the web UI's packages (bun audit)
+        run: cd web && bun audit
+      - name: Linux smoke (serve, freedesktop Trash, undo) with no network
+        # In a network namespace that has only loopback: cca must work, listen on 127.0.0.1 only
+        # and never try to reach anything else.
+        run: go build -o cca ./cmd/cca && SMOKE_NO_NET=1 scripts/linux-smoke.sh
