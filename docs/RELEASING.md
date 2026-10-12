@@ -18,7 +18,7 @@ step that needs a person is approving the signing job.
 | `build` | Linux | none | tests; the cca binaries; Linux archives; npm packages |
 | `build-mac` | macOS | none | the app, unsigned (records its SHA-256) |
 | `sign-mac` | macOS, environment **`release`** | Developer ID, notary key | **waits for your approval**; checks the app is the one build-mac made; signs and notarizes the app and the macOS npm binaries in a throwaway keychain; checks every signature names team `JZZSSM8VY6`; deletes the keychain and keys |
-| `publish` | Linux, environment **`publish`** | tap token | GitHub Release with provenance attestations; npm through trusted publishing (no token); the cask |
+| `publish` | Linux, environment **`publish`** | tap token | GitHub Release with the SBOM and provenance and SBOM attestations; npm through trusted publishing (no token); the cask |
 
 `sign-mac` installs and runs nothing but this repo's signing scripts and Apple's tools, so no
 third-party build code ever runs next to the signing key. macOS runners are free for public
@@ -90,6 +90,7 @@ Store Connect key, then
 brew install --cask johnccarroll/tap/claude-context-admin && cca version && cca doctor
 spctl --assess --type execute --verbose "/Applications/Claude Context Admin.app"   # Notarized Developer ID
 gh attestation verify ClaudeContextAdmin-0.1.0-macos.zip --repo johnccarroll/claude-context-admin
+gh attestation verify ClaudeContextAdmin-0.1.0-macos.zip --repo johnccarroll/claude-context-admin --predicate-type https://cyclonedx.org/bom
 npm i -g claude-context-admin && cca version
 claude plugin marketplace add johnccarroll/claude-context-admin && claude plugin install context-admin@context-admin
 claude mcp list | grep context-admin   # ✔ Connected

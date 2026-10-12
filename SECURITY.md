@@ -20,3 +20,14 @@ reproduce it, and the `cca version` you used.
 - **Claude only suggests.** Changes Claude proposes wait for your approval, shown in full. It
   can't propose adding MCP servers or plugins, or moving a project's skill into every project,
   and it reads only Markdown that Claude Code loads (never a file a `.md` symlink points to).
+
+## What each release ships with
+
+- **An SBOM.** `claude-context-admin-<version>.cdx.json` on the GitHub release lists everything
+  inside cca at the versions that were built: the Go modules and Go version read from the
+  binaries, and the web UI's packages as the lockfile resolved them (CycloneDX 1.6).
+- **Attestations.** The downloads carry signed build provenance and an SBOM attestation:
+  `gh attestation verify <file> --repo johnccarroll/claude-context-admin`, adding
+  `--predicate-type https://cyclonedx.org/bom` for the SBOM.
+- **Checks on every change.** CodeQL, `govulncheck` and `bun audit` (again daily), and tests
+  that fail on any network use beyond 127.0.0.1, in the source and in the running binary.

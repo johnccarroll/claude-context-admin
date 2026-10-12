@@ -92,6 +92,9 @@ $(printf "%b" "${deps%,\\n}")
 JSON
 for d in "$OUT"/npm/*/; do (cd "$OUT/npm" && npm pack "$d" --silent >/dev/null); done
 
+# The SBOM: what the binaries above were actually built from.
+"$ROOT/scripts/sbom.py" "$VERSION" "$OUT"/stage/*/cca > "$OUT/claude-context-admin-$VERSION.cdx.json"
+
 rm -rf "$OUT/stage"
 echo "Built $VERSION in $OUT"
 find "$OUT/archives" "$OUT/npm" -maxdepth 1 -type f | sed "s|$OUT/||" | sort
