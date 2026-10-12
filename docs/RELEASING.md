@@ -26,8 +26,9 @@ repositories; the macOS jobs never run from a private copy.
 
 ## Each release
 
-1. Bump `"version"` in `plugin/context-admin/.claude-plugin/plugin.json` and commit (the workflow
-   refuses a tag that doesn't match it).
+1. Add the version's section to `CHANGELOG.md` (it becomes the release notes), bump `"version"`
+   in `plugin/context-admin/.claude-plugin/plugin.json` and commit (the workflow refuses a tag
+   that doesn't match it).
 2. `git tag v0.1.0 && git push origin v0.1.0`
 3. GitHub emails you that `release` is waiting. **Actions → the run → Review deployments →
    Approve.** Everything else is automatic.

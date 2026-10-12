@@ -308,7 +308,9 @@ jobs:
             (cd published && sha256sum ./* | sort) > have.txt
             diff want.txt have.txt || { echo "::error::v$VERSION already has different files"; exit 1; }
           else
-            gh release create "v$VERSION" release/* --title "$VERSION" --generate-notes --verify-tag
+            # This version's section of the changelog, then GitHub's commit list.
+            awk -v v="## $VERSION " 'index($0, v) == 1 { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md > notes.md
+            gh release create "v$VERSION" release/* --title "$VERSION" --notes-file notes.md --generate-notes --verify-tag
           fi
 
       - name: npm

@@ -132,6 +132,16 @@ files itself.
 Report vulnerabilities privately through GitHub: **Security → Report a vulnerability** on this
 repository. See [SECURITY.md](SECURITY.md).
 
+To check a download came from this repository's release workflow, unchanged:
+
+```bash
+gh attestation verify ClaudeContextAdmin-<version>-macos.zip --repo johnccarroll/claude-context-admin
+```
+
+[SECURITY.md](SECURITY.md) lists what each release ships with (SBOM, attestations) and what is
+checked on every change. [CHANGELOG.md](CHANGELOG.md) has the history, and
+[CONTRIBUTING.md](CONTRIBUTING.md) the rules a change must keep.
+
 ## Build from source
 
 Needs Go 1.26 and Bun.
