@@ -352,15 +352,24 @@ export function buildReview(m: Model): ReviewItem[] {
   }
 
   // Same memory written in two projects: offer one shared copy.
-  const seen = new Set<string>();
-  for (let i = 0; i < m.mems.length; i++) for (let j = i + 1; j < m.mems.length; j++) {
-    const a = m.mems[i], b = m.mems[j];
-    if (a.project === b.project || a.type !== b.type || seen.has(a.id) || seen.has(b.id) || similarity(a.stem, b.stem) < 0.75) continue;
-    if (similarity(`${a.title} ${a.desc}`, `${b.title} ${b.desc}`) < 0.4) continue; // same file name, different subject
-    seen.add(a.id); seen.add(b.id);
+  for (const [a, b] of duplicatePairs(m.mems)) {
     out.push({ id: `dup:${a.id}|${b.id}`, tone: 'warn', icon: '⇄', title: a.title === b.title ? `“${a.title}” is written twice, in two projects` : `“${a.title}” and “${b.title}” look like the same memory`,
       body: `One is in ${m.projectOf(a.project).label}, the other in ${m.projectOf(b.project).label}. Compare them; merging keeps the one you choose, in Everywhere, and moves the other to the Trash.`, compare: [a, b],
       primary: { label: 'Merge into Everywhere…', op: 'merge-pick', args: { a: a.path, b: b.path } }, secondary: { label: 'Keep', op: 'dismiss', args: {} }, source: 'Built-in check' });
+  }
+  return out;
+}
+
+/** Memories written twice, in two projects: same kind, near-identical file name and subject. Review
+ * offers to merge them; the map joins them with a dotted line. */
+export function duplicatePairs(mems: Mem[]): [Mem, Mem][] {
+  const out: [Mem, Mem][] = [], seen = new Set<string>();
+  for (let i = 0; i < mems.length; i++) for (let j = i + 1; j < mems.length; j++) {
+    const a = mems[i], b = mems[j];
+    if (a.project === b.project || a.type !== b.type || seen.has(a.id) || seen.has(b.id) || similarity(a.stem, b.stem) < 0.75) continue;
+    if (similarity(`${a.title} ${a.desc}`, `${b.title} ${b.desc}`) < 0.4) continue; // same file name, different subject
+    seen.add(a.id); seen.add(b.id);
+    out.push([a, b]);
   }
   return out;
 }

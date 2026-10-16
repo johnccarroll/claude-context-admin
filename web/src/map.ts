@@ -3,7 +3,7 @@ import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY
 import { select } from 'd3-selection';
 import 'd3-transition';
 import { zoom as d3zoom, zoomIdentity, zoomTransform, type ZoomTransform } from 'd3-zoom';
-import { KIND, type Mem, type Model } from './model';
+import { KIND, duplicatePairs, type Mem, type Model } from './model';
 import { $, cssVar, esc } from './ui';
 
 interface N extends SimulationNodeDatum { m: Mem; r: number }
@@ -75,6 +75,18 @@ export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Me
       const dr = Math.hypot(t.x! - s.x!, t.y! - s.y!) * 1.6;
       return `M${s.x},${s.y}A${dr},${dr} 0 0,1 ${t.x},${t.y}`;
     });
+  // The same memory written in two projects: a dotted line, curving the other way from links.
+  const twins = duplicatePairs(mems).map(([a, b]) => [byId.get(a.id)!, byId.get(b.id)!] as [N, N]);
+  const twinOf = new Map<string, N[]>();
+  for (const [a, b] of twins) { twinOf.set(a.m.id, [...(twinOf.get(a.m.id) ?? []), b]); twinOf.set(b.m.id, [...(twinOf.get(b.m.id) ?? []), a]); }
+  const twin = g.append('g').selectAll('path').data(twins).join('path')
+    .attr('fill', 'none').attr('stroke', fg).attr('stroke-width', 1.2).attr('stroke-dasharray', '1.5 4').attr('stroke-linecap', 'round')
+    .attr('stroke-opacity', 0.55).style('pointer-events', 'none')
+    .attr('d', ([s, t]) => {
+      const dr = Math.hypot(t.x! - s.x!, t.y! - s.y!) * 1.2;
+      return `M${s.x},${s.y}A${dr},${dr} 0 0,0 ${t.x},${t.y}`;
+    });
+  ($('#mapdup') as HTMLElement).hidden = !twins.length;
   const node = g.append('g').selectAll('circle').data(ns).join('circle')
     .attr('cx', (d) => d.x!).attr('cy', (d) => d.y!).attr('r', (d) => d.r)
     .attr('fill', (d) => cssVar(model.projectOf(d.m.project).color))
@@ -90,7 +102,8 @@ export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Me
   }
 
   const tip = $('#tip');
-  const near = (d: N): Set<string> => new Set([d.m.id, ...d.m.out.map((x) => x.id), ...d.m.inn.map((x) => x.id)]);
+  const near = (d: N): Set<string> => new Set([d.m.id, ...d.m.out.map((x) => x.id), ...d.m.inn.map((x) => x.id), ...(twinOf.get(d.m.id) ?? []).map((x) => x.m.id)]);
+  const pairHas = (p: [N, N], d: N): boolean => p[0] === d || p[1] === d;
   const touches = (l: L, d: N): boolean => (l.source as N).m.id === d.m.id || (l.target as N).m.id === d.m.id;
   const glass = cssVar('var(--glass-strong)');
   let picked: N | undefined;
@@ -98,6 +111,7 @@ export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Me
     node.attr('opacity', 1).attr('stroke', (x) => (x === picked ? accent : glass)).attr('stroke-width', (x) => (x === picked ? 3 : 1.4));
     link.attr('stroke-opacity', (l) => (picked && touches(l, picked) ? 1 : l.cross ? 0.5 : 0.9))
       .attr('stroke', (l) => (picked && touches(l, picked) ? accent : l.cross ? accent : line));
+    twin.attr('stroke-opacity', (p) => (picked && pairHas(p, picked) ? 1 : 0.55));
   };
   mark = (id) => { picked = id ? byId.get(id) : undefined; rest(); };
   node
@@ -105,8 +119,10 @@ export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Me
       const s = near(d);
       node.attr('opacity', (x) => (s.has(x.m.id) ? 1 : 0.15));
       link.attr('stroke-opacity', (l) => (touches(l, d) ? 1 : 0.05)).attr('stroke', (l) => (touches(l, d) ? fg : l.cross ? accent : line));
+      twin.attr('stroke-opacity', (p) => (pairHas(p, d) ? 1 : 0.05));
+      const also = (twinOf.get(d.m.id) ?? []).map((x) => model.projectOf(x.m.project).label);
       tip.hidden = false;
-      tip.innerHTML = `<b>${esc(d.m.title)}</b><span>${esc(KIND[d.m.type] ?? d.m.type)} · ${esc(model.projectOf(d.m.project).label)} · ${d.m.out.length + d.m.inn.length} connections</span>${d.m.desc ? `<div style="margin-top:4px">${esc(d.m.desc)}</div>` : ''}`;
+      tip.innerHTML = `<b>${esc(d.m.title)}</b><span>${esc(KIND[d.m.type] ?? d.m.type)} · ${esc(model.projectOf(d.m.project).label)} · ${d.m.out.length + d.m.inn.length} connections</span>${d.m.desc ? `<div style="margin-top:4px">${esc(d.m.desc)}</div>` : ''}${also.length ? `<div style="margin-top:4px">Also written in ${esc(also.join(', '))}</div>` : ''}`;
     })
     .on('mousemove', (e: MouseEvent) => {
       const b = host.getBoundingClientRect();
