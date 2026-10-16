@@ -6,23 +6,19 @@
 [![CodeQL](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql)
 [![canary](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml)
 
-Claude Code loads a lot before you type: memories, CLAUDE.md and AGENTS.md, rules, skills,
-plugins, MCP servers and hooks, spread across your home folder and every repo. Claude Context
-Admin puts all of it in one local app. It shows what loads in each project and what it costs,
-finds what's broken, stale or duplicated, and fixes it, with undo for every change.
+Newer models need less instruction, but most Claude Code setups keep growing. Rules and agent
+instructions run to hundreds of lines, memories pile up details that went stale weeks ago, and all
+of it loads into every session. You pay for it in tokens every time, and past a point the extra
+instruction makes results worse, not better.
+
+Claude Context Admin puts everything Claude Code loads in one local app. Edit memories like notes,
+see how they connect in a memory graph, check what each project costs in tokens, and clean up
+what's broken, stale or duplicated. Nothing changes until you approve it, and every version is
+kept, whether you or Claude made the change.
 
 ![A tour: the memory graph across projects, a dotted line to the same note in another project, open a memory, follow a link, fix a broken one, then what loads and Review](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/tour.gif)
 
 ## What it does
-
-### See what Claude loads, and what it costs
-
-Pick a project and every page shows what Claude loads there: memories, CLAUDE.md and AGENTS.md,
-rules, skills, plugins, MCP servers and hooks. **What loads here** adds up the tokens each source
-spends before your first message, and how close MEMORY.md is to its load limit. Click any row to
-open the files behind it.
-
-![What loads at the start of a session in one project, by source](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/what-loads.png)
 
 ### Edit memories like notes
 
@@ -34,6 +30,22 @@ from memory to memory, and step back with the arrows.
 
 ![A memory open in the editor, with its links, connections and history](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/memory-editor.png)
 
+### See how your memories connect
+
+The map draws every memory and its links across projects, so orphans and near-duplicates stand
+out. Dotted lines join a memory written in two projects. Hover to preview, click to open.
+
+![Map of how memories connect across projects](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/map.png)
+
+### See what Claude loads, and what it costs
+
+Pick a project and every page shows what Claude loads there: memories, CLAUDE.md and AGENTS.md,
+rules, skills, plugins, MCP servers and hooks. **What loads here** adds up the tokens each source
+spends before your first message, and how close MEMORY.md is to its load limit. Click any row to
+open the files behind it.
+
+![What loads at the start of a session in one project, by source](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/what-loads.png)
+
 ### A review queue for upkeep
 
 Broken links, copies across projects, memories Claude never opens, unused MCP servers and
@@ -44,12 +56,15 @@ until you accept it, and Activity can undo it.
 
 ![Review: what to fix, with the evidence and the exact change](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/review.png)
 
-### See how it connects
+### How it differs from `/context` and `/doctor`
 
-The map draws every memory and its links across projects, so orphans and near-duplicates stand
-out. Dotted lines join a memory written in two projects. Hover to preview, click to open.
+Claude Code's `/context` shows how full the context window is in your current session, and
+`/doctor` checks that your installation is healthy. Both are useful, and both work one session at
+a time in the terminal. Claude Context Admin covers every project at once, lets you edit what it
+finds, keeps a history of every change, and waits for your approval before anything is written.
 
-![Map of how memories connect across projects](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/map.png)
+`cca doctor` is something else again. It checks that cca still understands the version of Claude
+Code you have installed.
 
 ### And
 
