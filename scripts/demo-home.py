@@ -158,6 +158,8 @@ PROJECTS = {
          "**Why:** unsymbolicated crashes were useless during the March release ([[mobile-release]]).", 21),
         ("reference_app_review", "reference", "App Store review", "Review takes ~24h; never submit on Fridays",
          "Plan around the [[mobile-release]] train.", 64),
+        ("reference_feature_flags", "reference", "Feature flags", "Flags live in LaunchDarkly; names are kebab-case, scoped by team",
+         "Copied from storefront when mobile adopted LaunchDarkly. Default off in prod.", 27),
     ],
     "design-system": [
         ("project_overview", "project", "Design system overview", "React components + tokens, published as @northwind/ui",
@@ -206,6 +208,8 @@ PROJECTS = {
          "**Why:** a $4k/month cluster had no owner.\n\n**How to apply:** the tags module in [[terraform-layout]].", 33),
         ("reference_dns", "reference", "DNS", "northwind.example on Cloudflare; TTL 300 for anything that fails over",
          "Records live next to the [[cloudflare-waf]] config.", 80),
+        ("reference_snowflake_roles", "reference", "Snowflake roles", "TRANSFORMER writes, REPORTER reads; no personal grants",
+         "Grants are applied from this repo. Layout in [[terraform-layout]].", 61),
     ],
 }
 
@@ -239,13 +243,19 @@ def reachable(body, items):
 SHARED = ["deploy-checklist", "code-review", "observability", "small-prs", "incident-process", "feature-flags-policy",
           "typescript-strict", "go-style", "migrations", "release-train", "secrets", "oncall"]
 SEE = ["Related: [[{}]].", "Team norm: [[{}]].", "See also [[{}]].", "Follows [[{}]]."]
+BRIDGES = {"storefront": 2, "payments-api": 2, "mobile": 1, "data-pipeline": 1, "design-system": 0, "infra": 0}
 
 
 def memories(items, owner_path, folder=None):
     d = f"{H}/.claude/projects/{enc(owner_path)}/memory"
-    if folder in PROJECTS:  # cite shared notes so projects connect through Everywhere
+    if folder in PROJECTS:  # a few bridges to Everywhere (some projects none); inside, notes chain to their neighbours
         k = list(PROJECTS).index(folder)
-        items = [(st, ty, ti, su, bo + ("\n\n" if bo.endswith("```") else " ") + SEE[(i + k) % 4].format(SHARED[(i * 5 + k * 3) % len(SHARED)]), da)
+        nm = lambda i: items[i][0].split("_", 1)[1].replace("_", "-")
+        def cite(i):
+            if i < BRIDGES[folder]:
+                return SEE[(i + k) % 4].format(SHARED[(i * 5 + k * 3) % len(SHARED)])
+            return "Part of [[overview]]." if i % 3 == 0 else f"Related: [[{nm(i - 1)}]]."
+        items = [(st, ty, ti, su, bo + ("\n\n" if bo.endswith("```") else " ") + cite(i), da)
                  for i, (st, ty, ti, su, bo, da) in enumerate(items)]
     items = [(st, ty, ti, su, reachable(bo, items), da) for st, ty, ti, su, bo, da in items]
     lines = ["# Memory Index", ""]
