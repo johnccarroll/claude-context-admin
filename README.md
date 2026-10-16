@@ -1,6 +1,6 @@
 # Claude Context Admin
 
-**See what Claude remembers. Keep it true.**
+**Take control of your Claude config. Less bloat. Fewer wasted tokens.**
 
 [![test](https://github.com/johnccarroll/claude-context-admin/actions/workflows/test.yml/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/test.yml)
 [![CodeQL](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql)
