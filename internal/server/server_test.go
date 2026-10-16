@@ -73,6 +73,12 @@ func TestTokenCookieAndState(t *testing.T) {
 	if res.Header.Get("Access-Control-Allow-Origin") != "" {
 		t.Fatal("CORS header must never be sent")
 	}
+
+	// Other parameters survive the redirect; only the token is dropped.
+	res, err = c.Get(url + "&hue=260")
+	if err != nil || res.StatusCode != http.StatusOK || res.Request.URL.RawQuery != "hue=260" {
+		t.Fatalf("launch with hue: %v %v %v", err, res.StatusCode, res.Request.URL)
+	}
 }
 
 func TestRejectsForeignHost(t *testing.T) {
