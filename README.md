@@ -11,7 +11,7 @@ plugins, MCP servers and hooks, spread across your home folder and every repo. C
 Admin puts all of it in one local app. It shows what loads in each project and what it costs,
 finds what's broken, stale or duplicated, and fixes it, with undo for every change.
 
-![A tour: the memory graph across projects, open a memory from it, follow a link, fix a broken one, then what loads and Review](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/tour.gif)
+![A tour: the memory graph across projects, a dotted line to the same note in another project, open a memory, follow a link, fix a broken one, then what loads and Review](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/tour.gif)
 
 ## What it does
 

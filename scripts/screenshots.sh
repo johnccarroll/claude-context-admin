@@ -31,7 +31,7 @@ python3 "$ROOT/scripts/demo-home.py" "$HOME_DIR" >/dev/null
 "$TMP/cca" --home "$HOME_DIR" --no-open --port 0 > "$TMP/log" 2>&1 &
 ENGINE=$!
 for _ in $(seq 50); do grep -q "http://" "$TMP/log" && break; sleep 0.1; done
-URL="$(grep -o 'http://[^ ]*' "$TMP/log")"
+URL="$(grep -o 'http://[^ ]*' "$TMP/log")&hue=260" # Indigo accent: reads cleaner in screenshots
 
 enc() { python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$1"; }
 REAL="$(python3 -c "import os;print(os.path.realpath('$HOME_DIR'))")"
