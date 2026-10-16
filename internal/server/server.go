@@ -249,7 +249,14 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		if t := r.URL.Query().Get("t"); t != "" && s.tokenOK(t) {
 			http.SetCookie(w, &http.Cookie{Name: s.cookieName(), Value: s.token, Path: "/", HttpOnly: true,
 				SameSite: http.SameSiteStrictMode})
-			http.Redirect(w, r, "/", http.StatusSeeOther) // drop the token from the address bar
+			// Drop the token from the address bar, keeping any other parameters (?hue=).
+			q := r.URL.Query()
+			q.Del("t")
+			loc := "/"
+			if rest := q.Encode(); rest != "" {
+				loc += "?" + rest
+			}
+			http.Redirect(w, r, loc, http.StatusSeeOther)
 			return
 		}
 		c, err := r.Cookie(s.cookieName())
