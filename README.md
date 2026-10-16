@@ -47,7 +47,7 @@ until you accept it, and Activity can undo it.
 ### See how it connects
 
 The map draws every memory and its links across projects, so orphans and near-duplicates stand
-out. Hover to preview, click to open.
+out. Dotted lines join a memory written in two projects. Hover to preview, click to open.
 
 ![Map of how memories connect across projects](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/map.png)
 

@@ -3,6 +3,10 @@
 What changed in each release, newest first. The release workflow copies a version's section into
 its GitHub release notes, where line breaks show, so each entry is one line.
 
+## Unreleased
+
+- The map joins a memory written in two projects with a dotted line, and its preview says where else it's written. Review's duplicate check and the map now use the same rule.
+
 ## 0.1.5 (2026-10-12)
 
 - Each release now comes with an SBOM, `claude-context-admin-<version>.cdx.json` (CycloneDX 1.6), listing everything inside cca at the versions that were built, and with a signed SBOM attestation for every download.

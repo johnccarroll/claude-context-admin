@@ -1,7 +1,7 @@
 // Run with `bun test` (bun's built-in runner; no extra dependency).
 import { expect, test } from 'bun:test';
 import cases from '../../internal/scan/testdata/links.json';
-import { buildModel, LINK } from '../src/model';
+import { buildModel, duplicatePairs, LINK } from '../src/model';
 import type { Entry, State } from '../src/types';
 
 test('LINK reads [[links]] exactly as the Go scanner does (shared cases)', () => {
@@ -100,4 +100,17 @@ test('header splitting matches scan.SplitHeader, including an empty header', () 
   expect(splitTool('---\n---\nBody').body).toBe('Body');
   expect(splitDoc('---\nname: x\n---').body).toBe('');
   expect(splitDoc('no header').body).toBe('no header');
+});
+
+test('duplicatePairs: the same memory in two projects pairs once; same project or different subject does not', () => {
+  const d = (dir: string, stem: string, desc: string, project: string): Entry => ({ ...mem(dir, stem, stem.split('_')[1], [], project), description: desc });
+  const m = buildModel(state([
+    d(app, 'reference_flags', 'Flags live in LaunchDarkly, kebab-case', '/h/app'),
+    d(other, 'reference_flags', 'Flags live in LaunchDarkly, kebab-case', '/h/other'),
+    d(app, 'reference_regions', 'Production runs in iad and fra', '/h/app'),
+    d(other, 'reference_regions', 'Quarterly revenue by sales territory', '/h/other'),
+    d(app, 'reference_flagz', 'Flags live in LaunchDarkly, kebab-case', '/h/app'),
+  ]));
+  const pairs = duplicatePairs(m.mems).map(([a, b]) => [a.project, b.project, a.stem]);
+  expect(pairs).toEqual([['/h/app', '/h/other', 'reference_flags']]);
 });
