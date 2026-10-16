@@ -1505,7 +1505,9 @@ function theme(): void {
   };
   const saved = store('cca-theme');
   if (saved) root.dataset.theme = saved;
-  root.style.setProperty('--hue', store('cca-hue') ?? '290');
+  // ?hue= sets the accent for one load without saving it (the README screenshots use Indigo).
+  const urlHue = new URLSearchParams(location.search).get('hue');
+  root.style.setProperty('--hue', (urlHue && /^\d{1,3}$/.test(urlHue) ? urlHue : null) ?? store('cca-hue') ?? '290');
   $$('.theme button', pop).forEach((b) => (b.onclick = () => {
     if (b.dataset.th) root.dataset.theme = b.dataset.th; else delete root.dataset.theme;
     store('cca-theme', b.dataset.th ?? ''); paint();
