@@ -29,7 +29,7 @@
   <main class="main">
     <div class="mobilebar" id="mnav"></div>
     <div class="top">
-      <div class="tblock"><span class="navb"><button id="navback" aria-label="Back" title="Back (⌘[)" disabled><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button><button id="navfwd" aria-label="Forward" title="Forward (⌘])" disabled><svg viewBox="0 0 16 16"><path d="m6 3 5 5-5 5"/></svg></button></span><span class="tdiv" aria-hidden="true"></span><div class="tcol"><div class="ttl"><h1 id="h1">All memories</h1><span id="scope"></span></div><div class="sub" id="sub"></div></div></div>
+      <div class="tblock"><span class="navb"><button id="navback" aria-label="Back" title="Back (⌘[)" disabled><svg viewBox="0 0 16 16"><path d="M10 3 5 8l5 5"/></svg></button><button id="navfwd" aria-label="Forward" title="Forward (⌘])" disabled><svg viewBox="0 0 16 16"><path d="m6 3 5 5-5 5"/></svg></button></span><span class="tdiv" aria-hidden="true"></span><div class="tcol"><div class="ttl"><h1 id="h1">All memories</h1><span id="scope"></span><div class="mapseg" id="mdim" role="radiogroup" aria-label="Map view" hidden><span class="thumb" aria-hidden="true"></span><button role="radio" aria-checked="false" data-v="2d" data-tip="Flat map">2D</button><button role="radio" aria-checked="false" data-v="3d" data-tip="3D brain">3D</button></div></div><div class="sub" id="sub"></div></div></div>
       <button class="btn" id="newmem" aria-label="New memory">+ New<span class="wide"> memory</span></button><button class="btn" id="addbtn" hidden>+ Add</button><div class="hacts" id="hacts"></div>
       <label class="search" id="searchwrap"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--faint)"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4"/></svg><input id="q" type="search" placeholder="Filter · ⌘K searches all" aria-label="Filter memories"></label>
     </div>
@@ -37,11 +37,9 @@
     <section class="view" id="v-all"></section>
     <section class="view" id="v-review" hidden></section>
     <section class="view" id="v-map" hidden><div id="mapempty"></div><div class="map" id="map"><div class="mhost" id="mhost"></div><div class="tip" id="tip" hidden></div>
-      <div class="mapbar" role="toolbar" aria-label="Map">
-        <div class="mapseg" id="mdim" role="radiogroup" aria-label="View"><span class="thumb" aria-hidden="true"></span><button role="radio" aria-checked="false" data-v="2d" data-tip="Flat map">2D</button><button role="radio" aria-checked="false" data-v="3d" data-tip="3D brain">3D</button></div>
-        <span class="msep" aria-hidden="true"></span>
-        <button id="mzout" aria-label="Zoom out" data-tip="Zoom out"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg></button>
+      <div class="mapbar" role="toolbar" aria-label="Map" aria-orientation="vertical">
         <button id="mzin" aria-label="Zoom in" data-tip="Zoom in"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M8 3v10"/></svg></button>
+        <button id="mzout" aria-label="Zoom out" data-tip="Zoom out"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg></button>
         <button id="mreset" aria-label="Reset view" data-tip="Reset view"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.75"/><path d="M2.6 2.4v2.9h2.9"/></svg></button>
         <span class="msep" aria-hidden="true"></span>
         <button id="mkeyb" aria-label="Key and controls" aria-expanded="false" aria-controls="mkey" data-tip="Key and controls"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v4M8 4.9v.1"/></svg></button>
@@ -59,8 +57,8 @@
         <div data-only="2d">Drag a memory or the map. Scroll or pinch to zoom. Arrow keys move between memories, Enter opens one.</div>
         <div data-only="3d">Drag to turn, scroll or pinch to zoom. Arrow keys move between memories, Enter opens one. It turns for half a minute, then rests; Reset view starts it again.</div>
       </div>
-      <div class="mtip" id="mtip" role="tooltip" aria-hidden="true"></div>
       <div class="vh" id="msay" aria-live="polite"></div></div></section>
+    <div class="mtip" id="mtip" role="tooltip" aria-hidden="true"></div>
     <section class="view" id="v-ins" hidden></section><section class="view" id="v-activity" hidden></section><section class="view" id="v-what" hidden></section><section class="view" id="v-plugins" hidden></section><section class="view" id="v-mcp" hidden></section><section class="view" id="v-skills" hidden></section><section class="view" id="v-agents" hidden></section><section class="view" id="v-hooks" hidden></section>
   </main>
 

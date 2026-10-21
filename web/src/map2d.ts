@@ -352,7 +352,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       const c = mid.get(d.n.project)!;
       items.push({ key: d.n.id, x, y, r: d.n.r * k, w: ctx.measureText(d.n.name).width, h: 18, prefer: x < c[0] / c[1] - 4 ? -1 : 1, last: d.side, big });
     }
-    const placed = placeLabels(items, fixed, dots, { ignoreDots: !!near });
+    const placed = placeLabels(items, fixed, dots, { ignoreDots: !!near, bounds: [4, 4, W - 4, H - 4] });
     let fading = false;
     for (const d of nodes) {
       const target = placed.has(d.n.id) ? 1 : 0;

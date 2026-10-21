@@ -228,22 +228,24 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .map:focus-within .mhost:has(:focus-visible){box-shadow:inset 0 0 0 2px var(--accent)}
 /* The 3D stage is dark in both themes, like a media viewer; its controls follow it. */
 .map.is3d{background:radial-gradient(120% 90% at 50% 45%,#0d0b14 0%,#030305 70%);--glass-strong:rgba(18,16,24,.78);--line:rgba(255,255,255,.1);--line-2:rgba(255,255,255,.16);--fg:#ededf0;--muted:#a1a1aa;--faint:#6e6e78;--sunk:rgba(255,255,255,.07);--surface:#16151c;color:#ededf0}
-.mapbar{position:absolute;right:16px;bottom:16px;z-index:3;display:flex;align-items:center;gap:0;padding:2px;border-radius:14px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);transition:translate .26s cubic-bezier(.23,1,.32,1)}
-.mapbar>button{position:relative;border:0;background:none;width:44px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--muted);transition:background-color .12s ease,color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
-.mapbar>button::after,.mapseg button::after{content:"";position:absolute;inset:-2px 0} /* 44px tall targets */
+/* Map tools: a vertical stack, bottom left, where the editor (which opens on the right) never covers it */
+.mapbar{position:absolute;left:16px;bottom:16px;z-index:3;display:flex;flex-direction:column;align-items:center;padding:2px;border-radius:14px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line)}
+.mapbar>button{position:relative;border:0;background:none;width:40px;height:44px;border-radius:10px;display:grid;place-items:center;color:var(--muted);transition:background-color .12s ease,color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
+.mapbar>button::after,.mapseg button::after{content:"";position:absolute;inset:0 -2px} /* 44px wide targets */
 .mapbar>button:active{transform:scale(.92)}
 .mapbar>button[aria-expanded="true"]{background:var(--sunk);color:var(--fg)}
 .mapbar svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 @media (hover:hover) and (pointer:fine){.mapbar>button:hover{background:var(--sunk);color:var(--fg)}}
-.msep{width:1px;height:18px;background:var(--line-2);margin:0 4px}
-.mapseg{position:relative;display:grid;grid-template-columns:1fr 1fr;background:var(--sunk);border-radius:10px;padding:2px}
-.mapseg button{position:relative;z-index:1;border:0;background:none;width:44px;height:36px;border-radius:8px;font:600 12px/1 var(--f-mono);letter-spacing:.02em;color:var(--muted);transition:color .16s ease}
-.mapseg button::after{inset:-4px 0}
+.msep{width:18px;height:1px;background:var(--line-2);margin:4px 0}
+/* 2D | 3D: a page-level choice, so it sits in the header beside the title */
+.mapseg{position:relative;display:grid;grid-template-columns:1fr 1fr;flex:none;align-self:center;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:2px;margin-left:4px}
+.mapseg button{position:relative;z-index:1;border:0;background:none;width:44px;height:30px;border-radius:8px;font:600 12px/1 var(--f-mono);letter-spacing:.02em;color:var(--muted);transition:color .16s ease}
+.mapseg button::after{inset:-7px 0} /* 44px tall targets */
 .mapseg button[aria-checked="true"]{color:var(--fg)}
 .mapseg button:disabled{opacity:.4;cursor:not-allowed}
 .mapseg .thumb{position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:8px;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.18),inset 0 0 0 1px var(--line);transition:transform .22s cubic-bezier(.23,1,.32,1)}
 .mapseg[data-v="3d"] .thumb{transform:translateX(100%)}
-.mapkey{position:absolute;right:16px;bottom:68px;z-index:4;width:min(300px,calc(100% - 32px));padding:12px 14px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);font-size:12.5px;color:var(--muted);display:grid;gap:8px;transform-origin:bottom right;opacity:0;transform:scale(.96) translateY(4px);pointer-events:none;transition:opacity .14s ease,transform .18s cubic-bezier(.23,1,.32,1),translate .26s cubic-bezier(.23,1,.32,1)}
+.mapkey{position:absolute;left:70px;bottom:16px;z-index:4;width:min(300px,calc(100% - 32px));padding:12px 14px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);font-size:12.5px;color:var(--muted);display:grid;gap:8px;transform-origin:bottom left;opacity:0;transform:scale(.96) translateX(-4px);pointer-events:none;transition:opacity .14s ease,transform .18s cubic-bezier(.23,1,.32,1)}
 .mapkey.open{opacity:1;transform:none;pointer-events:auto}
 .map:not(.is3d) .mapkey [data-only="3d"],.map.is3d .mapkey [data-only="2d"]{display:none}
 .mapkey .kt{font:500 11px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
@@ -256,12 +258,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .kln{width:22px;border-top:1.5px solid var(--muted)}
 .kln.dot{border-top:2px dotted var(--fg)}
 .kln.twin{border-top-color:rgba(216,216,226,.6)}
-.mtip{position:absolute;z-index:6;pointer-events:none;padding:5px 8px;border-radius:7px;font:500 12px/1.2 var(--f-ui);white-space:nowrap;background:var(--fg);color:var(--surface);box-shadow:0 4px 14px -4px rgba(0,0,0,.4);opacity:0;transform:translateY(3px) scale(.97);transform-origin:bottom center;transition:opacity .125s ease-out,transform .125s cubic-bezier(.23,1,.32,1)}
+.mtip{position:fixed;z-index:60;pointer-events:none;padding:5px 8px;border-radius:7px;font:500 12px/1.2 var(--f-ui);white-space:nowrap;background:var(--fg);color:var(--surface);box-shadow:0 4px 14px -4px rgba(0,0,0,.4);opacity:0;transform:scale(.97);transform-origin:var(--o,left center);transition:opacity .125s ease-out,transform .125s cubic-bezier(.23,1,.32,1)}
 .mtip.on{opacity:1;transform:none}
 .mtip.instant{transition-duration:0ms}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.app:has(#drawer.open) .mapbar,.app:has(#drawer.open) .mapkey{translate:calc(-1 * var(--dw))} /* one value: Bun's minifier drops the space before a second; a % here would be the toolbar's own width */
-@media (max-width:860px){.app:has(#drawer.open) .mapbar,.app:has(#drawer.open) .mapkey{opacity:0;pointer-events:none}} /* the editor covers most of the map */
 @media (prefers-reduced-motion:reduce){.mapseg .thumb,.mapkey,.mtip,.mapbar,.mhost.fade{transition:opacity .15s ease!important;animation:none!important;transform:none}}
 @media (prefers-reduced-transparency:reduce){.mapbar,.mapkey{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface)}}
 @media (prefers-contrast:more){.mapbar,.mapkey{background:var(--surface);border-color:var(--fg)}}

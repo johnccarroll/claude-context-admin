@@ -249,7 +249,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       return { key: s.d.id, x: s.x, y: s.y, r: s.px, w: lx.measureText(s.d.n.name).width, h: 18, prefer: s.x < c[0] / c[1] - 4 ? -1 : 1, last: side.get(s.d.id), big, dist: s.dist };
     });
     const dots: Dot[] = scr.map((s) => ({ key: s.d.id, x: s.x, y: s.y, r: s.px, dist: s.dist }));
-    const placed = placeLabels(items, fixed, dots, { ignoreDots: !!near });
+    const placed = placeLabels(items, fixed, dots, { ignoreDots: !!near, bounds: [4, 4, W - 4, H - 4] });
     lx.textBaseline = 'middle';
     for (const s of scr) {
       const id = s.d.id, cur = la.get(id) ?? 0, target = placed.has(id) ? 1 : 0;
