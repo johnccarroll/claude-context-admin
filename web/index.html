@@ -36,9 +36,31 @@
     <div class="chips" id="chips"></div>
     <section class="view" id="v-all"></section>
     <section class="view" id="v-review" hidden></section>
-    <section class="view" id="v-map" hidden><div id="mapempty"></div><div class="map" id="map"><svg id="msvg"></svg><div class="tip" id="tip" hidden></div>
-      <div class="maptools" role="group" aria-label="Zoom"><button id="mzin" aria-label="Zoom in" title="Zoom in">+</button><button id="mzout" aria-label="Zoom out" title="Zoom out">−</button><button id="mreset" aria-label="Fit everything" title="Fit everything"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg></button></div>
-      <div class="maplegend"><span>Each dot is one memory. Bigger means more connections.</span><span id="mapdup" hidden>Dotted lines join a memory written in two projects.</span><span id="maphow">Hover to preview, click to open. Scroll to zoom.</span></div></div></section>
+    <section class="view" id="v-map" hidden><div id="mapempty"></div><div class="map" id="map"><div class="mhost" id="mhost"></div><div class="tip" id="tip" hidden></div>
+      <div class="mapbar" role="toolbar" aria-label="Map">
+        <div class="mapseg" id="mdim" role="radiogroup" aria-label="View"><span class="thumb" aria-hidden="true"></span><button role="radio" aria-checked="false" data-v="2d" data-tip="Flat map">2D</button><button role="radio" aria-checked="false" data-v="3d" data-tip="3D brain">3D</button></div>
+        <span class="msep" aria-hidden="true"></span>
+        <button id="mzout" aria-label="Zoom out" data-tip="Zoom out"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg></button>
+        <button id="mzin" aria-label="Zoom in" data-tip="Zoom in"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M8 3v10"/></svg></button>
+        <button id="mreset" aria-label="Reset view" data-tip="Reset view"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.8 8a5.2 5.2 0 1 0 1.6-3.75"/><path d="M2.6 2.4v2.9h2.9"/></svg></button>
+        <span class="msep" aria-hidden="true"></span>
+        <button id="mkeyb" aria-label="Key and controls" aria-expanded="false" aria-controls="mkey" data-tip="Key and controls"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v4M8 4.9v.1"/></svg></button>
+      </div>
+      <div class="mapkey" id="mkey" role="dialog" aria-label="Key">
+        <span class="kt">Key</span>
+        <div class="kr"><i><span class="kcap">ABC</span></i>A project; plain names are memories</div>
+        <div class="kr"><i><span class="kdot"></span></i>A memory; bigger means more connections</div>
+        <div class="kr"><i><span class="kln"></span></i>A link between two memories</div>
+        <div class="kr" data-only="2d"><i><span class="kln dot"></span></i>The same memory, written in two projects</div>
+        <div class="kr" data-only="3d"><i><span class="kln twin"></span></i>The same memory, written in two projects</div>
+        <div class="kr" data-only="2d"><i><span class="kring"></span></i>A link to a memory that doesn't exist</div>
+        <div class="kr" data-only="3d"><i><span class="kdot ghost"></span></i>A link to a memory that doesn't exist</div>
+        <span class="kt">Controls</span>
+        <div data-only="2d">Drag a memory or the map. Scroll or pinch to zoom. Arrow keys move between memories, Enter opens one.</div>
+        <div data-only="3d">Drag to turn, scroll or pinch to zoom. Arrow keys move between memories, Enter opens one. It turns for half a minute, then rests; Reset view starts it again.</div>
+      </div>
+      <div class="mtip" id="mtip" role="tooltip" aria-hidden="true"></div>
+      <div class="vh" id="msay" aria-live="polite"></div></div></section>
     <section class="view" id="v-ins" hidden></section><section class="view" id="v-activity" hidden></section><section class="view" id="v-what" hidden></section><section class="view" id="v-plugins" hidden></section><section class="view" id="v-mcp" hidden></section><section class="view" id="v-skills" hidden></section><section class="view" id="v-agents" hidden></section><section class="view" id="v-hooks" hidden></section>
   </main>
 
