@@ -1,6 +1,6 @@
 module github.com/johnccarroll/claude-context-admin
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/fsnotify/fsnotify v1.10.1
