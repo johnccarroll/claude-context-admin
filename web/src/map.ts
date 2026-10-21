@@ -9,6 +9,7 @@ import { $, cssVar, esc } from './ui';
 
 export interface MNode {
   id: string; mem?: Mem; project: string; title: string; kind: string;
+  name: string;       // the title as drawn on the map: long ones end in an ellipsis
   ghost: boolean;     // a [[link]] to a memory that doesn't exist
   deg: number; r: number;
 }
@@ -41,16 +42,17 @@ export interface MapView {
 }
 
 let laid: { key: string; pos: Map<string, Pt> } | null = null;
+const short = (t: string): string => (t.length > 34 ? t.slice(0, 32).trimEnd() + '…' : t);
 
 function buildScene(model: Model, visible: (m: Mem) => boolean): Scene {
   const mems = model.mems;
-  const nodes: MNode[] = mems.map((m) => ({ id: m.id, mem: m, project: m.project, title: m.title, kind: m.type, ghost: false, deg: m.out.length + m.inn.length, r: 0 }));
+  const nodes: MNode[] = mems.map((m) => ({ id: m.id, mem: m, project: m.project, title: m.title, name: short(m.title), kind: m.type, ghost: false, deg: m.out.length + m.inn.length, r: 0 }));
   const links: MLink[] = [];
   for (const m of mems) for (const t of m.out) links.push({ s: m.id, t: t.id, cross: m.project !== t.project });
   const ghosts = new Set<string>();
   for (const m of mems) for (const k of m.missing) {
     const id = `ghost:${m.project}/${k}`;
-    if (!ghosts.has(id)) ghosts.add(id), nodes.push({ id, project: m.project, title: human(k), kind: '', ghost: true, deg: 0, r: 0 });
+    if (!ghosts.has(id)) ghosts.add(id), nodes.push({ id, project: m.project, title: human(k), name: short(human(k)), kind: '', ghost: true, deg: 0, r: 0 });
     links.push({ s: m.id, t: id, cross: false, ghost: true });
   }
   for (const [a, b] of duplicatePairs(mems)) links.push({ s: a.id, t: b.id, cross: true, twin: true });

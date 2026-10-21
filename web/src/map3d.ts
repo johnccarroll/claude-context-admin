@@ -41,7 +41,9 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   let raf = 0, paused = false, awakeUntil = 0, rotateUntil = 0, engine = false, touched = false, idle = 0, pulseUntil = 0;
   let px = 0, py = 0, last = performance.now(), dtAvg = 16.7, dtN = 0, firstStop = true;
   const rand = seeded(0.17);
-  const col = (p: string): string => { const v = S?.color(p) ?? ''; const m = v.match(/--c(\d)/); return m ? DEEP[m[1]] : cssVar(v) || '#66666f'; };
+  const colors = new Map<string, string>();
+  const col = (p: string): string => colors.get(p) ?? colors.set(p, (() => { const v = S?.color(p) ?? ''; const m = v.match(/--c(\d)/); return m ? DEEP[m[1]] : cssVar(v) || '#66666f'; })()).get(p)!;
+  let W = Math.max(1, host.clientWidth), H = Math.max(1, host.clientHeight); // updated on resize, never read per frame
   const focus = (): string | null => hover ?? kb ?? selected;
   const touchesFocus = (l: Lk): boolean => { const f = focus(); if (!f) return false; const [s, t] = ends(l); return s === f || t === f; };
 
@@ -157,7 +159,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     const dir = p.clone().normalize(); if (!dir.lengthSq()) dir.set(0, 0, 1);
     const cam = p.clone().add(dir.multiplyScalar(dist));
     // Shift both camera and target right, so the memory sits in the middle of the free area.
-    const W = host.clientWidth, H = Math.max(1, host.clientHeight), free = hooks.freeWidth();
+    const free = hooks.freeWidth();
     const tf = Math.tan((g.camera() as unknown as { fov: number }).fov * Math.PI / 360);
     const shiftPx = W / 2 - free / 2, perPx = (2 * dist * tf) / H;
     const right = new Vector3().subVectors(p, cam).cross(new Vector3(0, 1, 0)).normalize().multiplyScalar(shiftPx * perPx);
@@ -177,7 +179,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       if (!next) return;
       kb = next; ctl.autoRotate = false; clearTimeout(idle); refresh();
       const p = pts2.find((q) => q.d.id === next)!;
-      if (p.x < 60 || p.y < 60 || p.x > hooks.freeWidth() - 60 || p.y > host.clientHeight - 60) fly(p.d, 500);
+      if (p.x < 60 || p.y < 60 || p.x > hooks.freeWidth() - 60 || p.y > H - 60) fly(p.d, 500);
       const n = byId.get(next)!.n;
       hooks.announce(`${n.title}, ${S!.label(n.project)}, ${n.deg} connection${n.deg === 1 ? '' : 's'}`);
     } else if (e.key === 'Enter' && kb) hooks.open(kb);
@@ -191,7 +193,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   interface P { d: N; x: number; y: number; dist: number; px: number }
   function projected(): P[] {
     const cam = g.camera() as unknown as { position: Vector3; fov: number };
-    const H = host.clientHeight, W = host.clientWidth, focal = H / (2 * Math.tan((cam.fov * Math.PI) / 360));
+    const focal = H / (2 * Math.tan((cam.fov * Math.PI) / 360));
     const out: P[] = [];
     for (const d of nodes) {
       if (!S?.shown.has(d.id) || d.x === undefined) continue;
@@ -203,7 +205,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   }
   /** Draws names and capsules; returns true while any is still fading. */
   function names(dt: number): boolean {
-    const W = host.clientWidth, H = host.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
+    const dpr = Math.min(devicePixelRatio || 1, 2);
     if (lc.width !== Math.round(W * dpr) || lc.height !== Math.round(H * dpr)) { lc.width = Math.round(W * dpr); lc.height = Math.round(H * dpr); lc.style.width = W + 'px'; lc.style.height = H + 'px'; }
     lx.setTransform(dpr, 0, 0, dpr, 0, 0); lx.clearRect(0, 0, W, H);
     if (!S) return false;
@@ -244,7 +246,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     const items: LabelItem[] = order.map((s) => {
       const big = s.d.id === f; lx.font = fontOf(big);
       const c = mid.get(s.d.n.project)!;
-      return { key: s.d.id, x: s.x, y: s.y, r: s.px, w: lx.measureText(s.d.n.title).width, h: 18, prefer: s.x < c[0] / c[1] - 4 ? -1 : 1, last: side.get(s.d.id), big, dist: s.dist };
+      return { key: s.d.id, x: s.x, y: s.y, r: s.px, w: lx.measureText(s.d.n.name).width, h: 18, prefer: s.x < c[0] / c[1] - 4 ? -1 : 1, last: side.get(s.d.id), big, dist: s.dist };
     });
     const dots: Dot[] = scr.map((s) => ({ key: s.d.id, x: s.x, y: s.y, r: s.px, dist: s.dist }));
     const placed = placeLabels(items, fixed, dots, { ignoreDots: !!near });
@@ -260,8 +262,8 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       const big = id === f;
       lx.font = fontOf(big); lx.textAlign = sd > 0 ? 'left' : 'right';
       const x = s.x + sd * (s.px + 6), alpha = a * (big ? 1 : 0.5 + 0.5 * depth(s));
-      lx.lineWidth = 5; lx.lineJoin = 'round'; lx.strokeStyle = `rgba(3,3,6,${0.88 * alpha})`; lx.strokeText(s.d.n.title, x, s.y);
-      lx.fillStyle = `rgba(242,242,245,${alpha})`; lx.fillText(s.d.n.title, x, s.y);
+      lx.lineWidth = 5; lx.lineJoin = 'round'; lx.strokeStyle = `rgba(3,3,6,${0.88 * alpha})`; lx.strokeText(s.d.n.name, x, s.y);
+      lx.fillStyle = `rgba(242,242,245,${alpha})`; lx.fillText(s.d.n.name, x, s.y);
     }
     lx.letterSpacing = '0px';
     for (const c of caps) if (c.a > 0.03) drawChip(lx, T, S.label(c.p), S.count(c.p), c.x, c.y, col(c.p), c.a * (f ? 0.5 : S.gone(c.p) ? 0.6 : 1), true);
@@ -271,7 +273,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
 
   // ---------- Data ----------
   function update(s: Scene): void {
-    const prev = S; S = s;
+    const prev = S; S = s; colors.clear();
     if (prev?.key !== s.key) {
       // Reuse each memory's object so the library keeps its place; new ones start at their 2D
       // spot with a spread in depth, so every project is a cloud rather than a sheet.
@@ -303,7 +305,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     refresh();
   }
 
-  const ro = new ResizeObserver(() => { g.width(host.clientWidth).height(host.clientHeight); wake(300); });
+  const ro = new ResizeObserver(() => { W = Math.max(1, host.clientWidth); H = Math.max(1, host.clientHeight); g.width(W).height(H); wake(300); });
   ro.observe(host);
   const T0 = (): void => { T = tokens(); wake(300); };
 
