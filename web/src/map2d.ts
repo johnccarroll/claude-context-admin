@@ -32,7 +32,9 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   let hover: string | null = null, selected: string | null = null, kb: string | null = null, near: Set<string> | null = null;
   let dragging: D | null = null, pulseUntil = 0, first = true, sim: Simulation<D, undefined> | null = null;
   let T: Tokens = tokens();
-  const colorOf = (p: string): string => cssVar(S?.color(p) ?? 'var(--faint)');
+  // Project colours resolved once per theme or data change, never per frame.
+  let colors = new Map<string, string>();
+  const colorOf = (p: string): string => colors.get(p) ?? colors.set(p, cssVar(S?.color(p) ?? 'var(--faint)')).get(p)!;
   let sprites = new Map<string, HTMLCanvasElement>();
 
   const size = (): void => {
@@ -48,7 +50,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
 
   // Glow: one cached sprite per colour, so it costs a drawImage instead of a blur.
   function theme(): void {
-    T = tokens(); sprites = new Map();
+    T = tokens(); sprites = new Map(); colors = new Map();
     dirty = true; wake();
   }
   function sprite(c: string): HTMLCanvasElement {
@@ -185,7 +187,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
 
   // ---------- Data ----------
   function update(s: Scene): void {
-    const prev = S; S = s;
+    const prev = S; S = s; colors = new Map();
     if (prev?.key !== s.key) {
       const now = performance.now(), old = byId;
       nodes = s.nodes.map((n) => {
@@ -348,7 +350,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       const [x, y] = t.apply([d.x, d.y]), big = d.n.id === f;
       ctx.font = fontOf(big);
       const c = mid.get(d.n.project)!;
-      items.push({ key: d.n.id, x, y, r: d.n.r * k, w: ctx.measureText(d.n.title).width, h: 18, prefer: x < c[0] / c[1] - 4 ? -1 : 1, last: d.side, big });
+      items.push({ key: d.n.id, x, y, r: d.n.r * k, w: ctx.measureText(d.n.name).width, h: 18, prefer: x < c[0] / c[1] - 4 ? -1 : 1, last: d.side, big });
     }
     const placed = placeLabels(items, fixed, dots, { ignoreDots: !!near });
     let fading = false;
@@ -360,8 +362,8 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       const [x, y] = t.apply([d.x, d.y]), big = d.n.id === f;
       ctx.font = fontOf(big); ctx.textAlign = d.side > 0 ? 'left' : 'right';
       const tx = x + d.side * (d.n.r * k + 6);
-      ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.strokeStyle = rgba(T.ground, 0.85 * d.la); ctx.strokeText(d.n.title, tx, y);
-      ctx.fillStyle = rgba(d.n.ghost ? T.faint : T.fg, (big ? 1 : 0.88) * d.la * Math.max(d.a, 0.35)); ctx.fillText(d.n.title, tx, y);
+      ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.strokeStyle = rgba(T.ground, 0.85 * d.la); ctx.strokeText(d.n.name, tx, y);
+      ctx.fillStyle = rgba(d.n.ghost ? T.faint : T.fg, (big ? 1 : 0.88) * d.la * Math.max(d.a, 0.35)); ctx.fillText(d.n.name, tx, y);
     }
     ctx.textAlign = 'start';
     return fading;

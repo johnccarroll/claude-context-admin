@@ -228,7 +228,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .map:focus-within .mhost:has(:focus-visible){box-shadow:inset 0 0 0 2px var(--accent)}
 /* The 3D stage is dark in both themes, like a media viewer; its controls follow it. */
 .map.is3d{background:radial-gradient(120% 90% at 50% 45%,#0d0b14 0%,#030305 70%);--glass-strong:rgba(18,16,24,.78);--line:rgba(255,255,255,.1);--line-2:rgba(255,255,255,.16);--fg:#ededf0;--muted:#a1a1aa;--faint:#6e6e78;--sunk:rgba(255,255,255,.07);--surface:#16151c;color:#ededf0}
-.mapbar{position:absolute;right:16px;bottom:16px;z-index:3;display:flex;align-items:center;gap:0;padding:2px;border-radius:14px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);transition:right .26s cubic-bezier(.23,1,.32,1)}
+.mapbar{position:absolute;right:16px;bottom:16px;z-index:3;display:flex;align-items:center;gap:0;padding:2px;border-radius:14px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);transition:translate .26s cubic-bezier(.23,1,.32,1)}
 .mapbar>button{position:relative;border:0;background:none;width:44px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--muted);transition:background-color .12s ease,color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
 .mapbar>button::after,.mapseg button::after{content:"";position:absolute;inset:-2px 0} /* 44px tall targets */
 .mapbar>button:active{transform:scale(.92)}
@@ -243,7 +243,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .mapseg button:disabled{opacity:.4;cursor:not-allowed}
 .mapseg .thumb{position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:8px;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.18),inset 0 0 0 1px var(--line);transition:transform .22s cubic-bezier(.23,1,.32,1)}
 .mapseg[data-v="3d"] .thumb{transform:translateX(100%)}
-.mapkey{position:absolute;right:16px;bottom:68px;z-index:4;width:min(300px,calc(100% - 32px));padding:12px 14px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);font-size:12.5px;color:var(--muted);display:grid;gap:8px;transform-origin:bottom right;opacity:0;transform:scale(.96) translateY(4px);pointer-events:none;transition:opacity .14s ease,transform .18s cubic-bezier(.23,1,.32,1),right .26s cubic-bezier(.23,1,.32,1)}
+.mapkey{position:absolute;right:16px;bottom:68px;z-index:4;width:min(300px,calc(100% - 32px));padding:12px 14px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);font-size:12.5px;color:var(--muted);display:grid;gap:8px;transform-origin:bottom right;opacity:0;transform:scale(.96) translateY(4px);pointer-events:none;transition:opacity .14s ease,transform .18s cubic-bezier(.23,1,.32,1),translate .26s cubic-bezier(.23,1,.32,1)}
 .mapkey.open{opacity:1;transform:none;pointer-events:auto}
 .map:not(.is3d) .mapkey [data-only="3d"],.map.is3d .mapkey [data-only="2d"]{display:none}
 .mapkey .kt{font:500 11px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
@@ -260,8 +260,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .mtip.on{opacity:1;transform:none}
 .mtip.instant{transition-duration:0ms}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.app:has(#drawer.open) .mapbar,.app:has(#drawer.open) .mapkey{right:calc(min(var(--dw),100%) + 16px)}
-@media (max-width:640px){.app:has(#drawer.open) .mapbar,.app:has(#drawer.open) .mapkey{opacity:0;pointer-events:none}}
+.app:has(#drawer.open) .mapbar,.app:has(#drawer.open) .mapkey{translate:calc(-1 * var(--dw))} /* one value: Bun's minifier drops the space before a second; a % here would be the toolbar's own width */
+@media (max-width:860px){.app:has(#drawer.open) .mapbar,.app:has(#drawer.open) .mapkey{opacity:0;pointer-events:none}} /* the editor covers most of the map */
 @media (prefers-reduced-motion:reduce){.mapseg .thumb,.mapkey,.mtip,.mapbar,.mhost.fade{transition:opacity .15s ease!important;animation:none!important;transform:none}}
 @media (prefers-reduced-transparency:reduce){.mapbar,.mapkey{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface)}}
 @media (prefers-contrast:more){.mapbar,.mapkey{background:var(--surface);border-color:var(--fg)}}
