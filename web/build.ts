@@ -7,10 +7,16 @@ const res = await Bun.build({
   outdir: 'dist',
   minify: true,
   target: 'browser',
-  naming: { entry: '[name].[ext]', asset: 'assets/[name]-[hash].[ext]' },
+  // The 3D map is its own chunk, loaded only when 3D opens.
+  splitting: true,
+  naming: { entry: '[name].[ext]', chunk: 'chunks/[name]-[hash].[ext]', asset: 'assets/[name]-[hash].[ext]' },
 });
 if (!res.success) {
   for (const log of res.logs) console.error(log);
+  process.exit(1);
+}
+if (!res.outputs.some((o) => o.kind === 'chunk' && o.size > 100_000)) {
+  console.error('expected the 3D map as its own chunk; is map3d.ts still imported with import()?');
   process.exit(1);
 }
 cpSync('index.html', 'dist/index.html');
