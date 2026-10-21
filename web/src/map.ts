@@ -1,159 +1,289 @@
-// The memory map: one cluster per project, no node labels (hover for a card), static layout.
-import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, type SimulationNodeDatum } from 'd3-force';
-import { select } from 'd3-selection';
-import 'd3-transition';
-import { zoom as d3zoom, zoomIdentity, zoomTransform, type ZoomTransform } from 'd3-zoom';
-import { KIND, duplicatePairs, type Mem, type Model } from './model';
+// The memory map: a 3D view (default) and a 2D view of the same scene, behind one toolbar.
+// The 3D view is its own chunk, loaded only when it opens (see map3d.ts).
+import { duplicatePairs, GLOBAL, human, KIND, type Mem, type Model } from './model';
+import { layout, layoutKey, type Box, type LayoutLink, type LayoutNode, type Pt } from './maplogic';
+import { create as create2d } from './map2d';
 import { $, cssVar, esc } from './ui';
 
-interface N extends SimulationNodeDatum { m: Mem; r: number }
-interface L { source: N | string; target: N | string; cross: boolean }
+// ---------- The scene both views draw ----------
 
-// Redraws (a save, a live refresh) keep the user's zoom and pan while the same memories are shown.
-let view: { sig: string; t: ZoomTransform } | null = null;
-let mark: (id: string | null) => void = () => {};
-// The force layout is the costly part (about 200 ms for 350 memories): a redraw with the same size,
-// memories and links (a live refresh, a save elsewhere) reuses the positions it computed last time.
-let layout: { key: string; pos: Map<string, [number, number]> } | null = null;
-/** Rings the memory open in the editor and lights its connections, without redrawing. */
-export const markMap = (id: string | null): void => mark(id);
-
-/** Places nodes: each project's cluster pulled to its anchor, links holding related memories close. */
-function layoutNodes(ns: N[], ls: L[], anchor: Map<string, [number, number]>): void {
-  const sim = forceSimulation<N>(ns)
-    .force('link', forceLink<N, L & { source: N; target: N }>(ls as never).id((d) => d.m.id)
-      .distance((l) => (l.cross ? 120 : 22)).strength((l) => (l.cross ? 0.02 : 0.25)))
-    .force('charge', forceManyBody().strength(-14))
-    .force('x', forceX<N>((d) => anchor.get(d.m.project)![0]).strength(0.14))
-    .force('y', forceY<N>((d) => anchor.get(d.m.project)![1]).strength(0.14))
-    .force('collide', forceCollide<N>((d) => d.r + 2.2))
-    .stop();
-  for (let i = 0; i < 320; i++) sim.tick();
+export interface MNode {
+  id: string; mem?: Mem; project: string; title: string; kind: string;
+  ghost: boolean;     // a [[link]] to a memory that doesn't exist
+  deg: number; r: number;
+}
+export interface MLink { s: string; t: string; cross: boolean; ghost?: boolean; twin?: boolean }
+export interface Scene {
+  key: string;                        // memories and links; same key = same layout
+  nodes: MNode[]; links: MLink[]; byId: Map<string, MNode>;
+  near: Map<string, Set<string>>;     // each memory with what it links to, from, and its twins
+  projects: string[]; pos: Map<string, Pt>; shown: Set<string>;
+  label: (p: string) => string; color: (p: string) => string; gone: (p: string) => boolean;
+  count: (p: string) => number;
 }
 
-export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Mem) => void): void {
-  const host = $('#map');
-  const svg = select<SVGSVGElement, unknown>('#msvg');
-  const box = host.getBoundingClientRect();
-  const W = box.width, H = Math.max(box.height, 240); // fit the window; zoom handles the rest
-  $('#maphow').textContent = matchMedia('(hover: none)').matches ? 'Tap a dot to open it. Pinch to zoom.' : 'Hover to preview, click to open. Scroll to zoom.';
-  svg.attr('viewBox', `0 0 ${W} ${H}`).selectAll('*').remove();
+export interface Hooks {
+  open: (id: string) => void;
+  hover: (id: string | null, x?: number, y?: number) => void;
+  announce: (text: string) => void;
+  boxes: () => Box[];                 // floating controls, in the map's coordinates
+  freeWidth: () => number;            // the map's width not covered by the editor
+  reduce: () => boolean;
+}
+export interface MapView {
+  update(scene: Scene): void;
+  mark(id: string | null): void;
+  zoom(factor: number): void;
+  reset(): void;
+  active(on: boolean): void;          // false: the map isn't on screen, so draw nothing
+  theme(): void;
+  destroy(): void;
+}
 
-  const mems = model.mems.filter(visible);
-  const deg = (m: Mem): number => m.out.length + m.inn.length;
-  const ns: N[] = mems.map((m) => ({ m, r: 3.2 + Math.sqrt(deg(m)) * 1.6 }));
-  const byId = new Map(ns.map((n) => [n.m.id, n]));
-  const ls: L[] = [];
-  for (const n of ns) for (const t of n.m.out) if (byId.has(t.id)) ls.push({ source: n.m.id, target: t.id, cross: n.m.project !== t.project });
+let laid: { key: string; pos: Map<string, Pt> } | null = null;
 
-  // Anchors: Global in the middle, other projects around an ellipse.
-  const keys = [...new Set(mems.map((m) => m.project))];
-  const ring = keys.filter((k) => k !== 'Global');
-  const anchor = new Map<string, [number, number]>([['Global', [W / 2, H / 2]]]);
-  ring.forEach((k, i) => {
-    const a = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(1, ring.length);
-    anchor.set(k, [W / 2 + Math.cos(a) * W * 0.32, H / 2 + Math.sin(a) * H * 0.33]);
-  });
-  const key = `${W}x${H}|${ns.map((n) => n.m.id).join(',')}|${ls.map((l) => `${l.source}>${l.target}`).join(',')}`;
-  if (layout?.key === key) {
-    for (const n of ns) [n.x, n.y] = layout.pos.get(n.m.id)!;
-    for (const l of ls) { l.source = byId.get(l.source as string)!; l.target = byId.get(l.target as string)!; }
-  } else {
-    layoutNodes(ns, ls, anchor);
-    layout = { key, pos: new Map(ns.map((n) => [n.m.id, [n.x!, n.y!]])) };
+function buildScene(model: Model, visible: (m: Mem) => boolean): Scene {
+  const mems = model.mems;
+  const nodes: MNode[] = mems.map((m) => ({ id: m.id, mem: m, project: m.project, title: m.title, kind: m.type, ghost: false, deg: m.out.length + m.inn.length, r: 0 }));
+  const links: MLink[] = [];
+  for (const m of mems) for (const t of m.out) links.push({ s: m.id, t: t.id, cross: m.project !== t.project });
+  const ghosts = new Set<string>();
+  for (const m of mems) for (const k of m.missing) {
+    const id = `ghost:${m.project}/${k}`;
+    if (!ghosts.has(id)) ghosts.add(id), nodes.push({ id, project: m.project, title: human(k), kind: '', ghost: true, deg: 0, r: 0 });
+    links.push({ s: m.id, t: id, cross: false, ghost: true });
   }
-
-  const g = svg.append('g');
-  const edge = (l: L): [N, N] => [l.source as N, l.target as N];
-  const line = cssVar('var(--line-2)'), accent = cssVar('var(--accent)'), fg = cssVar('var(--fg)');
-  const link = g.append('g').selectAll('path').data(ls).join('path')
-    .attr('fill', 'none').attr('stroke', (l) => (l.cross ? accent : line)).attr('stroke-width', (l) => (l.cross ? 1 : 0.8))
-    .attr('stroke-opacity', (l) => (l.cross ? 0.5 : 0.9))
-    .attr('d', (l) => {
-      const [s, t] = edge(l);
-      if (!l.cross) return `M${s.x},${s.y}L${t.x},${t.y}`;
-      const dr = Math.hypot(t.x! - s.x!, t.y! - s.y!) * 1.6;
-      return `M${s.x},${s.y}A${dr},${dr} 0 0,1 ${t.x},${t.y}`;
-    });
-  // The same memory written in two projects: a dotted line, curving the other way from links.
-  const twins = duplicatePairs(mems).map(([a, b]) => [byId.get(a.id)!, byId.get(b.id)!] as [N, N]);
-  const twinOf = new Map<string, N[]>();
-  for (const [a, b] of twins) { twinOf.set(a.m.id, [...(twinOf.get(a.m.id) ?? []), b]); twinOf.set(b.m.id, [...(twinOf.get(b.m.id) ?? []), a]); }
-  const twin = g.append('g').selectAll('path').data(twins).join('path')
-    .attr('fill', 'none').attr('stroke', fg).attr('stroke-width', 1.2).attr('stroke-dasharray', '1.5 4').attr('stroke-linecap', 'round')
-    .attr('stroke-opacity', 0.55).style('pointer-events', 'none')
-    .attr('d', ([s, t]) => {
-      const dr = Math.hypot(t.x! - s.x!, t.y! - s.y!) * 1.2;
-      return `M${s.x},${s.y}A${dr},${dr} 0 0,0 ${t.x},${t.y}`;
-    });
-  ($('#mapdup') as HTMLElement).hidden = !twins.length;
-  const node = g.append('g').selectAll('circle').data(ns).join('circle')
-    .attr('cx', (d) => d.x!).attr('cy', (d) => d.y!).attr('r', (d) => d.r)
-    .attr('fill', (d) => cssVar(model.projectOf(d.m.project).color))
-    .attr('stroke', cssVar('var(--glass-strong)')).attr('stroke-width', 1.4).style('cursor', 'pointer');
-
-  const labels = g.append('g');
-  for (const k of keys) {
-    const members = ns.filter((n) => n.m.project === k);
-    const top = Math.min(...members.map((n) => n.y! - n.r));
-    const cx = members.reduce((a, n) => a + n.x!, 0) / members.length;
-    labels.append('text').attr('class', 'plabel').attr('x', cx).attr('y', top - 10).attr('text-anchor', 'middle')
-      .html(`${esc(model.projectOf(k).label)} <tspan>${members.length}</tspan>`);
-  }
-
-  const tip = $('#tip');
-  const near = (d: N): Set<string> => new Set([d.m.id, ...d.m.out.map((x) => x.id), ...d.m.inn.map((x) => x.id), ...(twinOf.get(d.m.id) ?? []).map((x) => x.m.id)]);
-  const pairHas = (p: [N, N], d: N): boolean => p[0] === d || p[1] === d;
-  const touches = (l: L, d: N): boolean => (l.source as N).m.id === d.m.id || (l.target as N).m.id === d.m.id;
-  const glass = cssVar('var(--glass-strong)');
-  let picked: N | undefined;
-  const rest = (): void => { // resting styles, with the open memory picked out
-    node.attr('opacity', 1).attr('stroke', (x) => (x === picked ? accent : glass)).attr('stroke-width', (x) => (x === picked ? 3 : 1.4));
-    link.attr('stroke-opacity', (l) => (picked && touches(l, picked) ? 1 : l.cross ? 0.5 : 0.9))
-      .attr('stroke', (l) => (picked && touches(l, picked) ? accent : l.cross ? accent : line));
-    twin.attr('stroke-opacity', (p) => (picked && pairHas(p, picked) ? 1 : 0.55));
+  for (const [a, b] of duplicatePairs(mems)) links.push({ s: a.id, t: b.id, cross: true, twin: true });
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const near = new Map(nodes.map((n) => [n.id, new Set([n.id])]));
+  for (const l of links) { near.get(l.s)!.add(l.t); near.get(l.t)!.add(l.s); }
+  for (const n of nodes) { if (n.ghost) n.deg = 1; n.r = n.ghost ? 3.2 : 3.6 + Math.sqrt(n.deg) * 1.9; }
+  const projects = [...new Set(nodes.map((n) => n.project))].sort((a, b) => (a === GLOBAL ? -1 : b === GLOBAL ? 1 : a.localeCompare(b)));
+  // Layout covers every memory, not the filtered ones, so a filter never moves anything.
+  const ln: LayoutNode[] = nodes.map((n) => ({ id: n.id, project: n.project, r: n.r }));
+  const ll: LayoutLink[] = links.filter((l) => !l.twin).map((l) => ({ s: l.s, t: l.t, cross: l.cross, ghost: l.ghost }));
+  const key = layoutKey(ln, ll);
+  if (laid?.key !== key) laid = { key, pos: layout(ln, ll, GLOBAL, laid?.pos) };
+  const shown = new Set<string>();
+  for (const m of mems) if (visible(m)) shown.add(m.id);
+  for (const l of links) if (l.ghost && shown.has(l.s)) shown.add(l.t);
+  const counts = new Map<string, number>();
+  for (const n of nodes) if (!n.ghost && shown.has(n.id)) counts.set(n.project, (counts.get(n.project) ?? 0) + 1);
+  return {
+    key, nodes, links, byId, near, projects, pos: laid.pos, shown,
+    label: (p) => model.projectOf(p).label,
+    color: (p) => model.projectOf(p).color,
+    gone: (p) => p !== GLOBAL && !model.projectOf(p).exists,
+    count: (p) => counts.get(p) ?? 0,
   };
-  mark = (id) => { picked = id ? byId.get(id) : undefined; rest(); };
-  node
-    .on('mouseenter', (_e, d) => {
-      const s = near(d);
-      node.attr('opacity', (x) => (s.has(x.m.id) ? 1 : 0.15));
-      link.attr('stroke-opacity', (l) => (touches(l, d) ? 1 : 0.05)).attr('stroke', (l) => (touches(l, d) ? fg : l.cross ? accent : line));
-      twin.attr('stroke-opacity', (p) => (pairHas(p, d) ? 1 : 0.05));
-      const also = (twinOf.get(d.m.id) ?? []).map((x) => model.projectOf(x.m.project).label);
-      tip.hidden = false;
-      tip.innerHTML = `<b>${esc(d.m.title)}</b><span>${esc(KIND[d.m.type] ?? d.m.type)} · ${esc(model.projectOf(d.m.project).label)} · ${d.m.out.length + d.m.inn.length} connections</span>${d.m.desc ? `<div style="margin-top:4px">${esc(d.m.desc)}</div>` : ''}${also.length ? `<div style="margin-top:4px">Also written in ${esc(also.join(', '))}</div>` : ''}`;
-    })
-    .on('mousemove', (e: MouseEvent) => {
-      const b = host.getBoundingClientRect();
-      let x = e.clientX - b.left + 14, y = e.clientY - b.top + 14;
-      if (x + 290 > b.width) x -= 300;
-      if (y + 120 > b.height) y -= 130;
-      tip.style.left = x + 'px';
-      tip.style.top = y + 'px';
-    })
-    .on('mouseleave', () => { rest(); tip.hidden = true; })
-    .on('click', (_e, d) => {
-      tip.hidden = true;
-      open(d.m);
-      // The editor slides over the right of the map: if it would cover this memory, pan it clear.
-      const dw = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--dw')) || 460; // the editor's width (resizable)
-      const free = W - dw - 20, t = zoomTransform(svg.node()!), [sx] = t.apply([d.x!, d.y!]);
-      if (W > 760 && sx > free - 40) svg.transition().duration(300).call(z.translateBy, (free / 2 - sx) / t.k, 0);
-    });
+}
 
-  if (!ns.length) return;
-  // Fit everything drawn, project labels included, into the space above the legend.
-  const bb = (g.node() as SVGGElement).getBBox();
-  const x0 = bb.x - 20, x1 = bb.x + bb.width + 20, y0 = bb.y - 16, y1 = bb.y + bb.height + 16;
-  const legend = ($('.maplegend') as HTMLElement).offsetHeight + 24, Hf = Math.max(160, H - legend);
-  const k = Math.min(W / (x1 - x0), Hf / (y1 - y0), 1.6);
-  const fit = zoomIdentity.translate(W / 2 - (k * (x0 + x1)) / 2, Hf / 2 - (k * (y0 + y1)) / 2).scale(k);
-  const sig = `${W}x${H}:${ns.map((n) => n.m.id).join('|')}`;
-  const z = d3zoom<SVGSVGElement, unknown>().scaleExtent([0.3, 5])
-    .on('zoom', (e) => { g.attr('transform', e.transform); view = { sig, t: e.transform }; });
-  svg.call(z).call(z.transform, view?.sig === sig ? view.t : fit);
-  $('#mreset').onclick = () => svg.transition().duration(300).call(z.transform, fit);
-  $('#mzin').onclick = () => svg.transition().duration(200).call(z.scaleBy, 1.4);
-  $('#mzout').onclick = () => svg.transition().duration(200).call(z.scaleBy, 1 / 1.4);
+// ---------- Drawing helpers both views use ----------
+
+/** Theme colours for canvas code, re-read when the theme or accent changes. */
+export interface Tokens { fg: string; muted: string; faint: string; ground: string; accent: string; dark: boolean; ui: string; mono: string }
+export function tokens(): Tokens {
+  const ground = cssVar('var(--surface)');
+  return {
+    fg: cssVar('var(--fg)'), muted: cssVar('var(--muted)'), faint: cssVar('var(--faint)'), ground, accent: cssVar('var(--accent)'),
+    dark: luminance(ground) < 0.3, ui: cssVar('var(--f-ui)') || 'system-ui', mono: cssVar('var(--f-mono)') || 'ui-monospace',
+  };
+}
+function rgbOf(c: string): [number, number, number] {
+  if (c.startsWith('#')) { const h = c.length === 4 ? c.slice(1).split('').map((x) => x + x).join('') : c.slice(1, 7); const i = parseInt(h, 16); return [(i >> 16) & 255, (i >> 8) & 255, i & 255]; }
+  const m = c.match(/[\d.]+/g); return m ? [+m[0], +m[1], +m[2]] : [128, 128, 128];
+}
+const luminance = (c: string): number => { const [r, g, b] = rgbOf(c); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
+export const rgba = (c: string, a: number): string => { const [r, g, b] = rgbOf(c); return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, a))})`; };
+export const mix = (c: string, to: string, t: number, a = 1): string => {
+  const [r1, g1, b1] = rgbOf(c), [r2, g2, b2] = rgbOf(to);
+  return `rgba(${Math.round(r1 + (r2 - r1) * t)},${Math.round(g1 + (g2 - g1) * t)},${Math.round(b1 + (b2 - b1) * t)},${a})`;
+};
+
+/** A project's name: a tinted capsule in tracked capitals with its count, so it never reads as
+ *  one of its memories (those are plain text). */
+// Below 500 px wide the capsules shrink and drop the count, so they don't crowd a phone screen.
+const compact = (c: CanvasRenderingContext2D): boolean => c.canvas.clientWidth > 0 && c.canvas.clientWidth < 500;
+export function chipSize(c: CanvasRenderingContext2D, T: Tokens, label: string, count: number): [number, number, number] {
+  const small = compact(c);
+  c.font = `600 ${small ? 9.5 : 10.5}px ${T.ui}`; c.letterSpacing = '0.08em';
+  const w1 = c.measureText(label.toUpperCase()).width;
+  c.font = `500 10.5px ${T.mono}`; c.letterSpacing = '0px';
+  const w2 = small ? 0 : c.measureText(String(count)).width + 7;
+  return [w1 + w2 + (small ? 14 : 18), small ? 18 : 20, w1];
+}
+export function drawChip(c: CanvasRenderingContext2D, T: Tokens, label: string, count: number, x: number, y: number, color: string, a: number, dark: boolean): Box {
+  const [w, h, w1] = chipSize(c, T, label, count), small = compact(c), pad = small ? 7 : 9;
+  // Kept inside the map's frame, so a project near the edge is never cut off.
+  const cw = c.canvas.clientWidth || Infinity;
+  x = Math.max(w / 2 + 4, Math.min(cw - w / 2 - 4, x));
+  const x0 = x - w / 2, y0 = y - h / 2;
+  c.beginPath(); c.roundRect(x0, y0, w, h, h / 2);
+  c.fillStyle = dark ? `rgba(10,10,14,${0.82 * a})` : `rgba(255,255,255,${0.92 * a})`; c.fill();
+  c.fillStyle = rgba(color, (dark ? 0.2 : 0.12) * a); c.fill();
+  c.lineWidth = 1; c.strokeStyle = rgba(color, (dark ? 0.55 : 0.5) * a); c.stroke();
+  c.textAlign = 'left'; c.textBaseline = 'middle';
+  // The name keeps full contrast even when its capsule is dimmed: only the capsule recedes.
+  const ta = Math.max(a, 0.85);
+  c.font = `600 ${small ? 9.5 : 10.5}px ${T.ui}`; c.letterSpacing = '0.08em';
+  c.fillStyle = dark ? mix(color, '#ffffff', 0.55, ta) : mix(color, '#000000', 0.35, ta); c.fillText(label.toUpperCase(), x0 + pad, y + 0.5);
+  c.letterSpacing = '0px';
+  if (!small) {
+    c.font = `500 10.5px ${T.mono}`;
+    c.fillStyle = dark ? `rgba(255,255,255,${0.62 * ta})` : `rgba(20,20,30,${0.62 * ta})`; c.fillText(String(count), x0 + pad + w1 + 7, y + 0.5);
+  }
+  return [x0, y0, x0 + w, y0 + h];
+}
+
+/** The hover card: what the memory is, where, how connected. Everything escaped. */
+export function tipHTML(s: Scene, n: MNode): string {
+  const twins = [...(s.near.get(n.id) ?? [])].filter((id) => s.links.some((l) => l.twin && ((l.s === n.id && l.t === id) || (l.t === n.id && l.s === id))));
+  const also = twins.map((id) => s.label(s.byId.get(id)!.project));
+  return `<b>${esc(n.title)}</b><span>${esc(n.ghost ? 'Broken link' : KIND[n.kind] ?? n.kind)} · ${esc(s.label(n.project))} · ${n.ghost ? 'no memory has this name' : `${n.deg} connection${n.deg === 1 ? '' : 's'}`}</span>` +
+    (n.mem?.desc ? `<div style="margin-top:4px">${esc(n.mem.desc)}</div>` : '') + (also.length ? `<div style="margin-top:4px">Also written in ${esc(also.join(', '))}</div>` : '');
+}
+
+// ---------- The view switch, toolbar and public API ----------
+
+type Kind = '2d' | '3d';
+const KEY = 'cca-map-view';
+const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+let gl: boolean | null = null;
+/** WebGL2 without a major performance caveat: software rendering on managed or virtual machines
+ *  is too slow for 3D, so those get 2D. */
+function webgl(): boolean {
+  if (gl === null) { try { gl = !!document.createElement('canvas').getContext('webgl2', { failIfMajorPerformanceCaveat: true }); } catch { gl = false; } }
+  return gl;
+}
+const saved = (): Kind | null => { try { const v = localStorage.getItem(KEY); return v === '2d' || v === '3d' ? v : null; } catch { return null; } };
+const save = (k: Kind): void => { try { localStorage.setItem(KEY, k); } catch { /* private window: not remembered */ } };
+function wanted(): Kind {
+  if (!webgl()) return '2d';
+  return saved() ?? (reduce.matches ? '2d' : '3d');
+}
+
+let kind: Kind | null = null, view: MapView | null = null, scene: Scene | null = null, marked: string | null = null;
+let openFn: (m: Mem) => void = () => {}, closeFn: () => void = () => {};
+let loading: Promise<void> | null = null, wired = false, onScreen = true, boxes: Box[] = [];
+
+function hooks(): Hooks {
+  const tip = $('#tip'), host = $('#map');
+  return {
+    open: (id) => { const m = scene?.byId.get(id)?.mem; if (m) openFn(m); },
+    hover: (id, x = 0, y = 0) => {
+      const n = id ? scene?.byId.get(id) : undefined;
+      if (!n || !scene) { tip.hidden = true; return; }
+      tip.innerHTML = tipHTML(scene, n); tip.hidden = false;
+      const b = host.getBoundingClientRect();
+      tip.style.left = Math.min(x + 14, b.width - 300) + 'px'; tip.style.top = Math.min(y + 18, b.height - 120) + 'px';
+    },
+    announce: (t) => { $('#msay').textContent = t; },
+    boxes: () => boxes,
+    freeWidth: () => { const w = host.clientWidth; return document.getElementById('drawer')?.classList.contains('open') && w > 760 ? w - (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--dw')) || 460) : w; },
+    reduce: () => reduce.matches,
+  };
+}
+
+/** The floating controls' boxes, so names steer around them; read on resize, not every frame. */
+function measureBoxes(): void {
+  const host = $('#map'), hb = host.getBoundingClientRect();
+  boxes = [...host.querySelectorAll<HTMLElement>('.mapbar, .mapkey.open')].map((el) => { const r = el.getBoundingClientRect(); return [r.left - hb.left - 6, r.top - hb.top - 6, r.right - hb.left + 6, r.bottom - hb.top + 6] as Box; });
+}
+
+async function show(k: Kind): Promise<void> {
+  if (kind === k && view) return;
+  kind = k;
+  const host = $('#mhost');
+  view?.destroy(); view = null; host.replaceChildren();
+  $('#map').classList.toggle('is3d', k === '3d');
+  const seg = $('#mdim'); seg.dataset.v = k;
+  for (const b of seg.querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.v === k));
+  setKey(false);
+  const make = k === '3d' ? (await import('./map3d')).create : create2d;
+  if (kind !== k) return; // switched again while loading
+  view = make(host, hooks());
+  view.active(onScreen);
+  if (scene) view.update(scene);
+  view.mark(marked);
+  host.classList.remove('fade'); void host.offsetWidth; host.classList.add('fade');
+}
+
+function setKey(open: boolean): void {
+  $('#mkey').classList.toggle('open', open);
+  $('#mkeyb').setAttribute('aria-expanded', String(open));
+  measureBoxes();
+}
+
+function wire(): void {
+  wired = true;
+  const map = $('#map'), btip = $('#mtip');
+  // 3D needs a usable GPU: otherwise the option is there but disabled, with the reason.
+  const b3 = $<HTMLButtonElement>('#mdim [data-v="3d"]');
+  if (!webgl()) { b3.disabled = true; b3.dataset.tip = '3D needs graphics acceleration, which this browser has turned off'; }
+  $('#mdim').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+    if (!b || b.disabled || b.dataset.v === kind) return;
+    save(b.dataset.v as Kind); void show(b.dataset.v as Kind);
+  });
+  $('#mzin').onclick = () => view?.zoom(1.4);
+  $('#mzout').onclick = () => view?.zoom(1 / 1.4);
+  $('#mreset').onclick = () => { if (marked) closeFn(); view?.reset(); };
+  const keyb = $('#mkeyb');
+  keyb.onclick = (e) => { e.stopPropagation(); hideTip(); setKey(!$('#mkey').classList.contains('open')); };
+  addEventListener('pointerdown', (e) => { if (!(e.target as HTMLElement).closest('#mkey, #mkeyb')) setKey(false); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#mkey').classList.contains('open')) setKey(false); });
+
+  // Toolbar tooltips: the first waits a moment, the next ones show at once while moving along.
+  let timer = 0, warm = 0, on: HTMLElement | null = null;
+  const showTip = (b: HTMLElement, instant: boolean): void => {
+    const mb = map.getBoundingClientRect(), r = b.getBoundingClientRect();
+    btip.textContent = b.dataset.tip ?? '';
+    btip.classList.toggle('instant', instant);
+    const w = btip.offsetWidth;
+    btip.style.left = Math.max(8, Math.min(mb.width - w - 8, r.left - mb.left + r.width / 2 - w / 2)) + 'px';
+    btip.style.top = r.top - mb.top - btip.offsetHeight - 8 + 'px';
+    btip.classList.add('on'); on = b;
+  };
+  function hideTip(): void { clearTimeout(timer); if (on) warm = performance.now(); on = null; btip.classList.remove('on'); }
+  for (const b of map.querySelectorAll<HTMLElement>('.mapbar [data-tip]')) {
+    b.addEventListener('pointerenter', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      clearTimeout(timer);
+      if (on || performance.now() - warm < 500) showTip(b, true); else timer = window.setTimeout(() => showTip(b, false), 450);
+    });
+    b.addEventListener('pointerleave', hideTip);
+    b.addEventListener('pointerdown', hideTip);
+    b.addEventListener('focus', () => { if (b.matches(':focus-visible')) showTip(b, false); });
+    b.addEventListener('blur', hideTip);
+  }
+
+  // Draw nothing while the map is off screen (another page, a hidden tab, a closed window).
+  const vis = (): void => { const v = !document.hidden && !$('#v-map').hidden && map.offsetParent !== null; if (v !== onScreen) { onScreen = v; view?.active(v); } };
+  new IntersectionObserver(vis).observe(map);
+  document.addEventListener('visibilitychange', vis);
+  new MutationObserver(vis).observe($('#v-map'), { attributes: true, attributeFilter: ['hidden'] });
+  new ResizeObserver(measureBoxes).observe(map);
+  // The drawer moves the toolbar; re-measure once it has.
+  const drawer = document.getElementById('drawer');
+  if (drawer) new MutationObserver(() => setTimeout(measureBoxes, 260)).observe(drawer, { attributes: true, attributeFilter: ['class'] });
+  // Theme or accent changes: re-read colours.
+  const retheme = (): void => view?.theme();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', retheme);
+  new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'class'] });
+}
+
+/** Draws the map for the memories that pass `visible`. Called on every render; keeps places. */
+export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Mem) => void, close: () => void = () => {}): void {
+  openFn = open; closeFn = close;
+  if (!wired) wire();
+  scene = buildScene(model, visible);
+  const k = kind ?? wanted();
+  if (view && kind === k) { view.update(scene); return; }
+  loading ??= show(k).finally(() => { loading = null; });
+}
+
+/** Marks the memory open in the editor and moves the view to it; null clears it. */
+export function markMap(id: string | null): void {
+  marked = id;
+  view?.mark(id);
 }
