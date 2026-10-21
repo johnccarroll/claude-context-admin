@@ -5,6 +5,7 @@ its GitHub release notes, where line breaks show, so each entry is one line.
 
 ## Unreleased
 
+- Built with Go 1.26.10, which fixes a certificate-verification advisory in the standard library (GO-2026-6809).
 - The map joins a memory written in two projects with a dotted line, and its preview says where else it's written. Review's duplicate check and the map now use the same rule.
 
 ## 0.1.5 (2026-10-12)
