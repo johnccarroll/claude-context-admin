@@ -235,19 +235,21 @@ function wire(): void {
   addEventListener('pointerdown', (e) => { if (!(e.target as HTMLElement).closest('#mkey, #mkeyb')) setKey(false); });
   addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#mkey').classList.contains('open')) setKey(false); });
 
-  // Toolbar tooltips: the first waits a moment, the next ones show at once while moving along.
+  // Control tooltips: the first waits a moment, the next ones show at once while moving along.
+  // Beside the vertical map tools; below the 2D | 3D switch in the header.
   let timer = 0, warm = 0, on: HTMLElement | null = null;
   const showTip = (b: HTMLElement, instant: boolean): void => {
-    const mb = map.getBoundingClientRect(), r = b.getBoundingClientRect();
+    const r = b.getBoundingClientRect(), side = !!b.closest('.mapbar');
     btip.textContent = b.dataset.tip ?? '';
     btip.classList.toggle('instant', instant);
-    const w = btip.offsetWidth;
-    btip.style.left = Math.max(8, Math.min(mb.width - w - 8, r.left - mb.left + r.width / 2 - w / 2)) + 'px';
-    btip.style.top = r.top - mb.top - btip.offsetHeight - 8 + 'px';
+    const w = btip.offsetWidth, h = btip.offsetHeight;
+    btip.style.setProperty('--o', side ? 'left center' : 'top center');
+    btip.style.left = (side ? r.right + 8 : Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))) + 'px';
+    btip.style.top = (side ? r.top + r.height / 2 - h / 2 : r.bottom + 8) + 'px';
     btip.classList.add('on'); on = b;
   };
   function hideTip(): void { clearTimeout(timer); if (on) warm = performance.now(); on = null; btip.classList.remove('on'); }
-  for (const b of map.querySelectorAll<HTMLElement>('.mapbar [data-tip]')) {
+  for (const b of document.querySelectorAll<HTMLElement>('#map .mapbar [data-tip], #mdim [data-tip]')) {
     b.addEventListener('pointerenter', (e) => {
       if (e.pointerType !== 'mouse') return;
       clearTimeout(timer);
@@ -260,10 +262,16 @@ function wire(): void {
   }
 
   // Draw nothing while the map is off screen (another page, a hidden tab, a closed window).
-  const vis = (): void => { const v = !document.hidden && !$('#v-map').hidden && map.offsetParent !== null; if (v !== onScreen) { onScreen = v; view?.active(v); } };
+  const vis = (): void => {
+    $('#mdim').hidden = $('#v-map').hidden || map.hidden; // the switch shows only on the map page, with a map to switch
+    const v = !document.hidden && !$('#v-map').hidden && map.offsetParent !== null;
+    if (v !== onScreen) { onScreen = v; view?.active(v); }
+  };
   new IntersectionObserver(vis).observe(map);
   document.addEventListener('visibilitychange', vis);
   new MutationObserver(vis).observe($('#v-map'), { attributes: true, attributeFilter: ['hidden'] });
+  new MutationObserver(vis).observe(map, { attributes: true, attributeFilter: ['hidden'] });
+  vis();
   new ResizeObserver(measureBoxes).observe(map);
   // The drawer moves the toolbar; re-measure once it has.
   const drawer = document.getElementById('drawer');

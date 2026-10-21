@@ -94,3 +94,10 @@ test('projects sit apart', () => {
   const [a, b] = [c('a'), c('b')];
   expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeGreaterThan(150);
 });
+
+test('names stay inside the map, trying the other side at an edge', () => {
+  const a = item('a', 380, 100); // near the right edge of a 400 px map
+  expect(placeLabels([a], [], [], { bounds: [0, 0, 400, 300] }).get('a')).toBe(-1);
+  const tight = item('b', 200, 100, { w: 500 });
+  expect(placeLabels([tight], [], [], { bounds: [0, 0, 400, 300] }).has('b')).toBe(false);
+});

@@ -104,7 +104,7 @@ export interface Dot { key: string; x: number; y: number; r: number; dist?: numb
 /** Places names in the order given (most important first). A name may not cross another name,
  *  a fixed box (capsules, controls) or a dot in front of its own; it tries its preferred side,
  *  then the other. Returns the side each placed name took. */
-export function placeLabels(items: LabelItem[], fixed: Box[], dots: Dot[], opts: { ignoreDots?: boolean; gap?: number } = {}): Map<string, 1 | -1> {
+export function placeLabels(items: LabelItem[], fixed: Box[], dots: Dot[], opts: { ignoreDots?: boolean; gap?: number; bounds?: Box } = {}): Map<string, 1 | -1> {
   const gap = opts.gap ?? 6;
   const names = new Grid<{ box: Box }>();
   for (const b of fixed) names.add({ box: b });
@@ -116,6 +116,8 @@ export function placeLabels(items: LabelItem[], fixed: Box[], dots: Dot[], opts:
     for (const side of [first, -first as 1 | -1]) {
       const x0 = side > 0 ? it.x + it.r + gap : it.x - it.r - gap - it.w;
       const box: Box = [x0 - 3, it.y - it.h / 2, x0 + it.w + 3, it.y + it.h / 2];
+      const b = opts.bounds;
+      if (b && (box[0] < b[0] || box[2] > b[2] || box[1] < b[1] || box[3] > b[3])) continue; // never off the map's edge
       if (!it.big) {
         if (names.hit(box)) continue;
         if (dotGrid.hit(box, ({ d }) => d.key !== it.key && (it.dist === undefined || d.dist === undefined || d.dist < it.dist + 20))) continue;
