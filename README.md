@@ -6,55 +6,58 @@
 [![CodeQL](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql)
 [![canary](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml)
 
+![Every memory across your projects as a 3D map: glowing clusters, named, turning; a hand swings it around and a hover lights up one memory's links](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/map.webp)
+
 Newer models need less instruction, but most Claude Code setups keep growing. Rules and agent
 instructions run to hundreds of lines, memories pile up details that went stale weeks ago, and all
 of it loads into every session. You pay for it in tokens every time, and past a point the extra
 instruction makes results worse, not better.
 
-Claude Context Admin puts everything Claude Code loads in one local app. Edit memories like notes,
-see how they connect in a memory graph, check what each project costs in tokens, and clean up
-what's broken, stale or duplicated. Nothing changes until you approve it, and every version is
-kept, whether you or Claude made the change.
+Claude Context Admin puts everything Claude Code loads in one local app. Nothing changes until you
+approve it, and every version is kept, whether you or Claude made the change.
 
-![A tour: the memory map in 3D turning, swung around and zoomed in, a memory opened and its links followed from one to the next, then the same map flat, what loads and Review](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/tour.webp)
+```bash
+brew install --cask johnccarroll/tap/claude-context-admin   # macOS app
+npm install -g claude-context-admin                         # macOS or Linux, in the browser
+```
+
+[Install](#install) · [Use](#use) · [Safety and privacy](#safety-and-privacy) · [Security](#security)
 
 ## What it does
 
-### Edit memories like notes
-
-Title, kind, the one-line summary Claude reads every session, and the details. Links to other
-memories read as their names; a broken one is flagged with a one-click fix, and typing `[[` offers
-the memories you can link to. Renames keep links and MEMORY.md in sync, and every version is kept,
-whether you or Claude changed it, with a diff and one-click restore. Follow links or the graph
-from memory to memory, and step back with the arrows.
-
-![A memory open in the editor, with its links, connections and history](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/memory-editor.png)
-
 ### See how your memories connect
 
-The map draws every memory and its links across projects in 3D, so orphans and near-duplicates
-stand out. Hover to light up a memory's links, click to open it, or switch to the flat 2D map.
+Every memory and its links, across every project, as a map you can turn. Hover to light up what a
+memory links to; click to open it, and follow its links from memory to memory. Orphans and
+near-duplicates stand out. The flat 2D map is one tap away.
 
-![The memory map in 3D: each project a glowing cluster, named, with links between them](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/map.png)
+![Opening a memory from the 3D map: the camera flies in, the editor opens beside it, and each link followed flies to the next memory](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/navigate.webp)
+
+### Edit memories like notes
+
+Title, kind, the one-line summary Claude reads every session, and the details. Type `[[` to link
+another memory; links read as their names, and a broken one is flagged with a one-click fix.
+Renames keep links and MEMORY.md in sync, and every version is kept with a diff and one-click
+restore.
+
+![Typing [[ in a memory lists the memories it can link to; the picked one reads as its name](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/editor.webp)
 
 ### See what Claude loads, and what it costs
 
-Pick a project and every page shows what Claude loads there: memories, CLAUDE.md and AGENTS.md,
-rules, skills, plugins, MCP servers and hooks. **What loads here** adds up the tokens each source
-spends before your first message, and how close MEMORY.md is to its load limit. Click any row to
-open the files behind it.
+Every project's startup cost at a glance, then each source within it: your instructions, the
+project's CLAUDE.md and AGENTS.md, MEMORY.md, plugins, skills and MCP servers. Open any row to see
+the files behind it.
 
-![What loads at the start of a session in one project, by source](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/what-loads.png)
+![What loads here: tokens per project, then one project's sources and the files behind them](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/loads.webp)
 
 ### A review queue for upkeep
 
 Broken links, copies across projects, memories Claude never opens, unused MCP servers and
 plugins, hooks pointing at missing scripts, a MEMORY.md near its limit, memories stranded when a
-repo was renamed, and instructions written for older models (stacked ALL-CAPS rules, "think step
-by step", retired model names). Each card shows the evidence and the exact change; nothing happens
-until you accept it, and Activity can undo it.
+repo was renamed, and instructions written for older models. Each card shows the evidence and the
+exact change; nothing happens until you accept it, and Activity can undo it.
 
-![Review: what to fix, with the evidence and the exact change](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/review.png)
+![Review: a link to a note that was never written, with its evidence, fixed in one click](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/review.webp)
 
 ### How it differs from `/context` and `/doctor`
 
