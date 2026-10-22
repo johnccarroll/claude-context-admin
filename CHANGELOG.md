@@ -3,11 +3,13 @@
 What changed in each release, newest first. The release workflow copies a version's section into
 its GitHub release notes, where line breaks show, so each entry is one line.
 
-## Unreleased
+## 0.2.0 (2026-10-22)
 
 - The memory map opens in 3D: memories glow in project clusters with their names on the map, it turns until you touch it, and opening a memory flies to it. 2D is one tap away and is used without a graphics card or with Reduce Motion. Arrow keys move between memories in both.
 - Filters are labelled (Loads in, Kind) and say what's selected, with Clear filters beside the count.
 - The editor slides out cleanly; before, the whole window could jump sideways while it opened.
+- Buttons and rows answer when pressed, menus grow from where they open, hover effects no longer stick on touch screens, and Reduce Motion cross-fades instead of moving.
+- Review shows what a suggestion would change as a clear before and after.
 - Built with Go 1.26.10, which fixes a certificate-verification advisory in the standard library (GO-2026-6809).
 - The map joins a memory written in two projects with a dotted line, and its preview says where else it's written. Review's duplicate check and the map now use the same rule.
 
