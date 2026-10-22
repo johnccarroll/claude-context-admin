@@ -405,6 +405,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .arow:hover{background:var(--glass-strong)}
 .arow .who{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;background:var(--sunk);color:var(--muted)}
 .arow .who.you{background:var(--accent-soft);color:var(--accent-2)}
+.arow .who.claude,.ver .who.claude{font-size:12px;color:var(--accent-2)}
 .arow .what{min-width:0}
 .arow .what span{color:var(--muted);font-size:12.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .arow time{font-size:12px;color:var(--faint);white-space:nowrap}
