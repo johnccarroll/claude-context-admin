@@ -16,7 +16,7 @@ see how they connect in a memory graph, check what each project costs in tokens,
 what's broken, stale or duplicated. Nothing changes until you approve it, and every version is
 kept, whether you or Claude made the change.
 
-![A tour: the memory map in 3D turning, swung around and zoomed in, a memory opened and its links followed from one to the next, then the same map flat, what loads and Review](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/tour.gif)
+![A tour: the memory map in 3D turning, swung around and zoomed in, a memory opened and its links followed from one to the next, then the same map flat, what loads and Review](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/tour.webp)
 
 ## What it does
 
