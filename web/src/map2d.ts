@@ -206,6 +206,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
         [...nodes].sort((a, b) => b.n.deg - a.n.deg).forEach((d, i) => { d.from = c.get(d.n.project)!; d.t0 = now; d.delay = Math.min(i * 6, 500); d.dur = 700; [d.x, d.y] = d.from; });
       }
     }
+    else for (const d of nodes) d.n = s.byId.get(d.n.id) ?? d.n; // titles and fields can change without the structure
     if (first) { first = false; fit(0); }
     if (hover && !s.shown.has(hover)) hover = null;
     retarget();

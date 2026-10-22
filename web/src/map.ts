@@ -45,7 +45,23 @@ export interface MapView {
 let laid: { key: string; pos: Map<string, Pt> } | null = null;
 const short = (t: string): string => (t.length > 34 ? t.slice(0, 32).trimEnd() + '…' : t);
 
+// The structure (memories, links, twins, layout) is built once per model; a filter or keystroke only
+// recomputes what's shown. The model object is replaced whenever the data changes.
+type Structure = Omit<Scene, 'shown' | 'count'>;
+const built = new WeakMap<Model, Structure>();
+
 function buildScene(model: Model, visible: (m: Mem) => boolean): Scene {
+  let st = built.get(model);
+  if (!st) built.set(model, (st = buildStructure(model)));
+  const shown = new Set<string>();
+  for (const m of model.mems) if (visible(m)) shown.add(m.id);
+  for (const l of st.links) if (l.ghost && shown.has(l.s)) shown.add(l.t);
+  const counts = new Map<string, number>();
+  for (const n of st.nodes) if (!n.ghost && shown.has(n.id)) counts.set(n.project, (counts.get(n.project) ?? 0) + 1);
+  return { ...st, shown, count: (p) => counts.get(p) ?? 0 };
+}
+
+function buildStructure(model: Model): Structure {
   const mems = model.mems;
   const nodes: MNode[] = mems.map((m) => ({ id: m.id, mem: m, project: m.project, title: m.title, name: short(m.title), kind: m.type, ghost: false, deg: m.out.length + m.inn.length, r: 0 }));
   const links: MLink[] = [];
@@ -65,19 +81,15 @@ function buildScene(model: Model, visible: (m: Mem) => boolean): Scene {
   // Layout covers every memory, not the filtered ones, so a filter never moves anything.
   const ln: LayoutNode[] = nodes.map((n) => ({ id: n.id, project: n.project, r: n.r }));
   const ll: LayoutLink[] = links.filter((l) => !l.twin).map((l) => ({ s: l.s, t: l.t, cross: l.cross, ghost: l.ghost }));
-  const key = layoutKey(ln, ll);
-  if (laid?.key !== key) laid = { key, pos: layout(ln, ll, GLOBAL, laid?.pos) };
-  const shown = new Set<string>();
-  for (const m of mems) if (visible(m)) shown.add(m.id);
-  for (const l of links) if (l.ghost && shown.has(l.s)) shown.add(l.t);
-  const counts = new Map<string, number>();
-  for (const n of nodes) if (!n.ghost && shown.has(n.id)) counts.set(n.project, (counts.get(n.project) ?? 0) + 1);
+  const lkey = layoutKey(ln, ll);
+  if (laid?.key !== lkey) laid = { key: lkey, pos: layout(ln, ll, GLOBAL, laid?.pos) };
+  // Twins don't move anything, but the views must redraw when one appears or goes.
+  const key = lkey + '#' + links.filter((l) => l.twin).map((l) => `${l.s}=${l.t}`).join('|');
   return {
-    key, nodes, links, byId, near, projects, pos: laid.pos, shown,
+    key, nodes, links, byId, near, projects, pos: laid.pos,
     label: (p) => model.projectOf(p).label,
     color: (p) => model.projectOf(p).color,
     gone: (p) => p !== GLOBAL && !model.projectOf(p).exists,
-    count: (p) => counts.get(p) ?? 0,
   };
 }
 
@@ -166,8 +178,14 @@ function wanted(): Kind {
 }
 
 let kind: Kind | null = null, view: MapView | null = null, scene: Scene | null = null, marked: string | null = null;
-let openFn: (m: Mem) => void = () => {}, closeFn: () => void = () => {};
+let openFn: (m: Mem) => void = () => {}, closeFn: (then: () => void) => void = (then) => then();
 let loading: Promise<void> | null = null, wired = false, onScreen = true, boxes: Box[] = [];
+let showTip: (b: HTMLElement, instant: boolean) => void = () => {};
+
+function disable3d(why: string): void {
+  const b3 = $<HTMLButtonElement>('#mdim [data-v="3d"]');
+  b3.setAttribute('aria-disabled', 'true'); b3.dataset.tip = why;
+}
 
 function hooks(): Hooks {
   const tip = $('#tip'), host = $('#map');
@@ -177,8 +195,10 @@ function hooks(): Hooks {
       const n = id ? scene?.byId.get(id) : undefined;
       if (!n || !scene) { tip.hidden = true; return; }
       tip.innerHTML = tipHTML(scene, n); tip.hidden = false;
-      const b = host.getBoundingClientRect();
-      tip.style.left = Math.min(x + 14, b.width - 300) + 'px'; tip.style.top = Math.min(y + 18, b.height - 120) + 'px';
+      // Beside the cursor, flipping to the other side near an edge so it never covers what's lit.
+      const b = host.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = (x + 14 + w > b.width ? Math.max(4, x - 14 - w) : x + 14) + 'px';
+      tip.style.top = (y + 18 + h > b.height ? Math.max(4, y - 12 - h) : y + 18) + 'px';
     },
     announce: (t) => { $('#msay').textContent = t; },
     boxes: () => boxes,
@@ -193,17 +213,27 @@ function measureBoxes(): void {
   boxes = [...host.querySelectorAll<HTMLElement>('.mapbar, .mapseg, .mapkey.open')].map((el) => { const r = el.getBoundingClientRect(); return [r.left - hb.left - 6, r.top - hb.top - 6, r.right - hb.left + 6, r.bottom - hb.top + 6] as Box; });
 }
 
+let showing = 0;
 async function show(k: Kind): Promise<void> {
   if (kind === k && view) return;
   kind = k;
+  const my = ++showing; // only the latest switch may create a view
   const host = $('#mhost');
   view?.destroy(); view = null; host.replaceChildren();
   $('#map').classList.toggle('is3d', k === '3d');
   const seg = $('#mdim'); seg.dataset.v = k;
   for (const b of seg.querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.v === k));
   setKey(false);
-  const make = k === '3d' ? (await import('./map3d')).create : create2d;
-  if (kind !== k) return; // switched again while loading
+  let make = create2d;
+  if (k === '3d') {
+    try { make = (await import('./map3d')).create; } catch {
+      // The 3D file couldn't load (say cca was updated while this page stayed open): use 2D.
+      if (my !== showing) return;
+      disable3d('3D couldn’t load. Reload the page to try again.');
+      kind = null; await show('2d'); return;
+    }
+  }
+  if (my !== showing) return; // switched again while loading
   view = make(host, hooks());
   view.active(onScreen);
   if (scene) view.update(scene);
@@ -229,16 +259,16 @@ function wire(): void {
   }
   const map = $('#map'), btip = $('#mtip');
   // 3D needs a usable GPU: otherwise the option is there but disabled, with the reason.
-  const b3 = $<HTMLButtonElement>('#mdim [data-v="3d"]');
-  if (!webgl()) { b3.disabled = true; b3.dataset.tip = '3D needs graphics acceleration, which this browser has turned off'; }
+  if (!webgl()) disable3d('3D needs graphics acceleration, which this browser has turned off');
   $('#mdim').addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
-    if (!b || b.disabled || b.dataset.v === kind) return;
+    if (b?.getAttribute('aria-disabled') === 'true') { showTip(b, true); return; } // say why instead of doing nothing
+    if (!b || b.dataset.v === kind) return;
     save(b.dataset.v as Kind); void show(b.dataset.v as Kind);
   });
   $('#mzin').onclick = () => view?.zoom(1.4);
   $('#mzout').onclick = () => view?.zoom(1 / 1.4);
-  $('#mreset').onclick = () => { if (marked) closeFn(); view?.reset(); };
+  $('#mreset').onclick = () => { if (marked) closeFn(() => view?.reset()); else view?.reset(); };
   const keyb = $('#mkeyb');
   keyb.onclick = (e) => { e.stopPropagation(); hideTip(); setKey(!$('#mkey').classList.contains('open')); };
   addEventListener('pointerdown', (e) => { if (!(e.target as HTMLElement).closest('#mkey, #mkeyb')) setKey(false); });
@@ -246,7 +276,7 @@ function wire(): void {
 
   // Control tooltips: the first waits a moment, the next ones show at once while moving along.
   let timer = 0, warm = 0, on: HTMLElement | null = null;
-  const showTip = (b: HTMLElement, instant: boolean): void => {
+  showTip = (b: HTMLElement, instant: boolean): void => {
     // Left of the zoom stack, below the 2D | 3D toggle: always toward the map, never off its edge.
     const r = b.getBoundingClientRect(), stack = !!b.closest('.mapbar');
     btip.textContent = b.dataset.tip ?? '';
@@ -285,13 +315,15 @@ function wire(): void {
   const drawer = document.getElementById('drawer');
   if (drawer) new MutationObserver(() => setTimeout(measureBoxes, 260)).observe(drawer, { attributes: true, attributeFilter: ['class'] });
   // Theme or accent changes: re-read colours.
-  const retheme = (): void => view?.theme();
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', retheme);
+  const look = (): string => `${document.documentElement.dataset.theme}|${document.documentElement.style.getPropertyValue('--hue')}|${document.documentElement.className}`;
+  let was = look();
+  const retheme = (): void => { const now = look(); if (now !== was) { was = now; view?.theme(); } };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => view?.theme());
   new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'class'] });
 }
 
 /** Draws the map for the memories that pass `visible`. Called on every render; keeps places. */
-export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Mem) => void, close: () => void = () => {}): void {
+export function drawMap(model: Model, visible: (m: Mem) => boolean, open: (m: Mem) => void, close: (then: () => void) => void = (then) => then()): void {
   openFn = open; closeFn = close;
   if (!wired) wire();
   scene = buildScene(model, visible);
