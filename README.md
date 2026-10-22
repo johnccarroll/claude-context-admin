@@ -6,7 +6,7 @@
 [![CodeQL](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql)
 [![Canary](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml)
 
-![Every memory across your projects as a 3D map: glowing clusters, named, turning; a hand swings it around and a hover lights up one memory's links](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/map.webp)
+![Opening a memory from the 3D map: the camera flies in, the editor opens beside it, each link followed flies to the next memory, then the same map in flat 2D and back](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/navigate.webp)
 
 Newer models need less instruction, yet most Claude Code setups keep piling on more. Rules files
 run to hundreds of lines, and memories hang on to things that stopped being true weeks ago. All of
@@ -34,7 +34,7 @@ around, hover a memory to light up its links, and click to fly from one memory t
 leftovers stand out: notes nothing points to, or two notes saying the same thing. The flat 2D map
 is one tap away.
 
-![Opening a memory from the 3D map: the camera flies in, the editor opens beside it, each link followed flies to the next memory, then the same map in flat 2D and back](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/navigate.webp)
+![Every memory across your projects as a 3D map: glowing clusters, named, turning; a hand swings it around and a hover lights up one memory's links](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/map.webp)
 
 ### Edit memories like notes
 
