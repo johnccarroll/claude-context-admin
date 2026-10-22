@@ -40,7 +40,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   let hover: string | null = null, selected: string | null = null, kb: string | null = null, near: Set<string> | null = null;
   let raf = 0, paused = false, awakeUntil = 0, rotateUntil = 0, engine = false, touched = false, idle = 0, pulseUntil = 0;
   // Ambient motion (the turn and signals on every link) runs for a minute after any input, then rests.
-  let liveUntil = performance.now() + TURN_FOR, ambient = true, settle = 0;
+  let liveUntil = performance.now() + TURN_FOR, ambient = true, settle = 0, busy = false;
   let px = 0, py = 0, last = performance.now(), dtAvg = 16.7, dtN = 0;
   const rand = seeded(0.17);
   const colors = new Map<string, string>();
@@ -64,9 +64,10 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     .linkOpacity(0.3)
     .linkWidth(LA((l) => (touchesFocus(l) ? 0.5 : 0)))
     // Signals only on the focused memory's links, for a few seconds.
-    .linkDirectionalParticles(LA((l) => (hooks.reduce() || l.twin || l.ghost ? 0 : touchesFocus(l) ? 3 : !ambient ? 0 : l.cross ? 2 : 1)))
+    // At rest every link carries a signal, as in the mockup; past ~250 links only those between projects do.
+    .linkDirectionalParticles(LA((l) => (hooks.reduce() || l.twin || l.ghost ? 0 : touchesFocus(l) ? 3 : !ambient ? 0 : l.cross ? (busy ? 1 : 2) : busy ? 0 : 1)))
     .linkDirectionalParticleWidth(1.2).linkDirectionalParticleSpeed(PARTICLE_SPEED).linkDirectionalParticleColor(() => '#ffffff')
-    .cooldownTime(15000) // the map lifts and settles on screen, as in the mockup
+    .cooldownTime(15000).cooldownTicks(300) // the map lifts and settles on screen, as in the mockup, in a bounded number of steps
     .onEngineStop(() => { engine = false; })
     .onNodeHover((o: NodeObject | null) => {
       const d = o as N | null;
@@ -105,7 +106,12 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
 
   // Input keeps it awake; the library's hover test runs in its render loop.
   el.addEventListener('pointermove', (e) => { const r = host.getBoundingClientRect(); px = e.clientX - r.left; py = e.clientY - r.top; live(); wake(600); });
-  el.addEventListener('pointerleave', () => { hooks.hover(null); });
+  el.addEventListener('pointerleave', () => {
+    hooks.hover(null);
+    if (!hover) return;
+    hover = null; el.style.cursor = ''; refresh(); // the library only re-tests hover on moves inside the map
+    clearTimeout(idle); if (!selected) idle = window.setTimeout(spin, 2500);
+  });
   el.addEventListener('wheel', () => { live(); wake(600); }, { passive: true });
   function live(): void { liveUntil = performance.now() + TURN_FOR; }
 
@@ -292,6 +298,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       byId = new Map(nodes.map((d) => [d.id, d]));
       anchor.clear();
       for (const p of s.projects) { const m = s.nodes.filter((n) => n.project === p).map((n) => s.pos.get(n.id)!); anchor.set(p, [m.reduce((a, q) => a + q[0], 0) / m.length * SC, -m.reduce((a, q) => a + q[1], 0) / m.length * SC]); }
+      busy = s.links.length > 250;
       const links: Lk[] = s.links.map((l) => ({ source: l.s, target: l.t, cross: l.cross, ghost: l.ghost, twin: l.twin }));
       engine = true;
       if (!prev) {
@@ -305,6 +312,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       }
       g.graphData({ nodes, links });
     } else {
+      for (const d of nodes) d.n = s.byId.get(d.id) ?? d.n; // titles and fields can change without the structure
       g.nodeVisibility(g.nodeVisibility()).linkVisibility(g.linkVisibility());
     }
     if (hover && !s.shown.has(hover)) hover = null;

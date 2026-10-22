@@ -880,7 +880,7 @@ const VIEW_RENDER: Partial<Record<View, () => void>> = {
     $('#mapempty').innerHTML = none ? emptyHTML('Nothing to map yet', 'The map shows how memories link to each other across projects. It fills in as Claude saves memories.')
       : unmatched ? emptyHTML('No memories match', 'Nothing in this scope matches the filter.', '<button class="btn" id="mapclear">Clear filter</button>') : '';
     if (unmatched) $('#mapclear').onclick = () => { ui.q = ''; ui.layer = ''; ui.kind = ''; ($('#q') as HTMLInputElement).value = ''; render(); };
-    if (!none && !unmatched) { drawMap(model, memShown, openMemory, () => closeDrawer()); markMap(ui.open?.id ?? null); }
+    if (!none && !unmatched) { drawMap(model, memShown, openMemory, (then) => leave(() => { closeDrawer(); then(); })); markMap(ui.open?.id ?? null); }
   },
 };
 
