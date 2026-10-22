@@ -23,6 +23,7 @@ npm install -g claude-context-admin                         # macOS or Linux, in
 ```
 
 [Install](#install) · [Use](#use) · [Safety and privacy](#safety-and-privacy) · [Security](#security)
+· [Feedback](#feedback-and-contributions)
 
 ## What it does
 
@@ -177,11 +178,11 @@ make dev      # live dev server on a made-up demo home: UI edits reload, Go edit
 make dev-real # the same on your real config, read-only (scripts/dev.sh write: editable)
 ```
 
-## Ideas and contributions
+## Feedback and contributions
 
-Ideas are as welcome as code. If something is missing or could work better,
-[open an idea](https://github.com/johnccarroll/claude-context-admin/issues/new?template=idea.md).
-[CONTRIBUTING.md](CONTRIBUTING.md) covers bugs and pull requests.
+Feedback and ideas are as welcome as code. If something is missing, felt off or could work better,
+[open an issue](https://github.com/johnccarroll/claude-context-admin/issues/new?template=idea.md).
+To contribute code, [CONTRIBUTING.md](CONTRIBUTING.md) covers building, testing and pull requests.
 
 ## License
 
