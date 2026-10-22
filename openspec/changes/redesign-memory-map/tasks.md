@@ -19,9 +19,9 @@
 
 ## 4. 3D view (`map3d.ts`)
 
-- [x] 4.1 Native 3d-force-graph view seeded from the 2D layout with a z spread; warmup and cooldown; bloom at half resolution; pixel ratio capped at 2; node drag off; `nodeLabel`/`linkLabel` empty; verify framed at first frame and no page errors
-- [x] 4.2 Names layer and capsules with the shared placement; hover and open focus; fly-in; particles only on focus, speed scaled by measured frame time
-- [x] 4.3 Turn: pauses on hover and while open, resumes after idle, stops after 30 s, Reset view restarts; `pauseAnimation()` when still, hidden or not the current view; verify idle under 1% and 500 memories at 50 fps or more with CPU slowed 4×
+- [x] 4.1 Native 3d-force-graph view seeded from the 2D layout with a z spread; settles on screen within a bounded cooldown; full-resolution bloom; pixel ratio capped at 2; node drag off; `nodeLabel`/`linkLabel` empty; verify framed at first frame and no page errors
+- [x] 4.2 Names layer and capsules with the shared placement; hover and open focus; fly-in; signals on every link at rest (between projects only past ~250 links), a stream on the focused memory, speed scaled by measured frame time
+- [x] 4.3 Turn: pauses on hover and while open, resumes after idle, rests a minute after the last input, Reset view restarts; `pauseAnimation()` when still, hidden or not the current view; verify idle under 1% and 500 memories at 50 fps or more with CPU slowed 4×
 - [x] 4.4 Keyboard navigation and announcements on projected positions
 
 ## 5. Shared chrome (`map.ts`, `index.html`, `styles.css`)
