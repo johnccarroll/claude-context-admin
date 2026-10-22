@@ -10,6 +10,7 @@
 
 # Personal tooling config, kept local
 .linear.toml
+/openspec/
 
 # Test and screenshot runs write images here; real screenshots live in docs/screenshots
 /*.png
