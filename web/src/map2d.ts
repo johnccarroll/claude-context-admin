@@ -5,7 +5,7 @@ import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY
 import { select } from 'd3-selection';
 import 'd3-transition';
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from 'd3-zoom';
-import { drawChip, rgba, tokens, type Hooks, type MapView, type MLink, type MNode, type Scene, type Tokens } from './map';
+import { chipSize, drawChip, rgba, tokens, type Hooks, type MapView, type MLink, type MNode, type Scene, type Tokens } from './map';
 import { ARROWS, hull, nextInDirection, placeLabels, type Box, type Dot, type LabelItem, type Pt } from './maplogic';
 import { cssVar } from './ui';
 
@@ -332,7 +332,13 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       const y = sy - 16 * Math.min(1.4, k) - 6, pa = Math.max(0.4, m.reduce((a, d) => a + d.a, 0) / m.length) * (S.gone(p) ? 0.6 : 1);
       caps.push([p, sx, y, pa]);
     }
-    for (const [p, x, y, a] of caps) fixed.push(drawChip(ctx, T, S.label(p), S.count(p), x, y, colorOf(p), a, T.dark));
+    const hud = hooks.boxes();
+    for (const [p, x, y, a] of caps) {
+      const [w, h] = chipSize(ctx, T, S.label(p), S.count(p)), cx = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, x)); // where drawChip will put it
+      const box: Box = [cx - w / 2, y - h / 2, cx + w / 2, y + h / 2];
+      if (hud.some((b) => b[0] < box[2] && b[2] > box[0] && b[1] < box[3] && b[3] > box[1])) continue; // never under a control
+      fixed.push(drawChip(ctx, T, S.label(p), S.count(p), x, y, colorOf(p), a, T.dark));
+    }
     // Memory names in screen space, crisp at any zoom; none overlap
     const items: LabelItem[] = [], dots: Dot[] = [];
     const want = (d: D): boolean => {
@@ -379,6 +385,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     },
     zoom: (f) => glide(220).call(zoom.scaleBy, f),
     reset() { kb = null; hover = null; retarget(); fit(480); },
+    locate(id) { const d = byId.get(id); return d ? t.apply([d.x, d.y]) as [number, number] : null; },
     active(v) { on = v; if (v) { dirty = true; wake(); } else if (raf) { cancelAnimationFrame(raf); raf = 0; } },
     destroy() { on = false; cancelAnimationFrame(raf); sim?.stop(); ro.disconnect(); sel.on('.zoom', null); canvas.remove(); },
   };

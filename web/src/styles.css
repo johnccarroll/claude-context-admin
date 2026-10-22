@@ -237,13 +237,13 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .mapbar svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 @media (hover:hover) and (pointer:fine){.mapbar>button:hover{background:var(--sunk);color:var(--fg)}}
 .msep{width:18px;height:1px;background:var(--line-2);margin:4px 0}
-/* 2D | 3D: a page-level choice, so it sits in the header beside the title */
-.mapseg{position:relative;display:grid;grid-template-columns:1fr 1fr;flex:none;align-self:center;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:2px;margin-left:4px}
-.mapseg button{position:relative;z-index:1;border:0;background:none;width:44px;height:30px;border-radius:8px;font:600 12px/1 var(--f-mono);letter-spacing:.02em;color:var(--muted);transition:color .16s ease}
-.mapseg button::after{inset:-7px 0} /* 44px tall targets */
+/* 2D | 3D: top left of the map, the corner you read first; the tools sit below it, bottom left */
+.mapseg{position:absolute;top:16px;left:16px;z-index:3;display:grid;grid-template-columns:1fr 1fr;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:12px;padding:2px}
+.mapseg button{position:relative;z-index:1;border:0;background:none;width:48px;height:36px;border-radius:8px;font:600 12px/1 var(--f-mono);letter-spacing:.02em;color:var(--muted);transition:color .16s ease}
+.mapseg button::after{inset:-4px 0} /* 44px tall targets */
 .mapseg button[aria-checked="true"]{color:var(--fg)}
 .mapseg button:disabled{opacity:.4;cursor:not-allowed}
-.mapseg .thumb{position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:8px;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.18),inset 0 0 0 1px var(--line);transition:transform .22s cubic-bezier(.23,1,.32,1)}
+.mapseg .thumb{position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:9px;background:color-mix(in srgb,var(--fg) 13%,transparent);box-shadow:0 1px 2px rgba(0,0,0,.18),inset 0 0 0 1px var(--line);transition:transform .22s cubic-bezier(.23,1,.32,1)}
 .mapseg[data-v="3d"] .thumb{transform:translateX(100%)}
 .mapkey{position:absolute;left:70px;bottom:16px;z-index:4;width:min(300px,calc(100% - 32px));padding:12px 14px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);font-size:12.5px;color:var(--muted);display:grid;gap:8px;transform-origin:bottom left;opacity:0;transform:scale(.96) translateX(-4px);pointer-events:none;transition:opacity .14s ease,transform .18s cubic-bezier(.23,1,.32,1)}
 .mapkey.open{opacity:1;transform:none;pointer-events:auto}
