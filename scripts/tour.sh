@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Records the README tour (docs/tour.gif) and a launch clip (dist/tour.mp4, not committed) from the real Mac app
+# Records the README tour (docs/tour.webp) and a launch clip (dist/tour.mp4, not committed) from the real Mac app
 # on the made-up demo home. Nothing from your own setup is shown.
 #
 #   scripts/build-mac-app.sh 0.0.0-dev && scripts/tour.sh
@@ -8,7 +8,7 @@
 # the driver draws a cursor and walks the tour, and screencapture records the app's window.
 # macOS only. The screen must be unlocked, and the terminal needs Screen Recording and
 # Accessibility permission (to record the window, place it and press the start key). Needs
-# cliclick and ffmpeg.
+# cliclick, ffmpeg and img2webp (libwebp).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,7 +18,7 @@ LENGTH=46  # seconds recorded: the whole tour
 CLIP=27    # seconds in the launch clip: up to the reset back to the whole map
 trap 'osascript -e "quit app \"Claude Context Admin\"" >/dev/null 2>&1 || true; kill "${ENGINE:-}" 2>/dev/null || true; rm -rf "$TMP"' EXIT
 [ -x "$APP" ] || { echo "build the app first: scripts/build-mac-app.sh 0.0.0-dev" >&2; exit 1; }
-for c in cliclick ffmpeg; do command -v "$c" >/dev/null || { echo "needs $c" >&2; exit 1; }; done
+for c in cliclick ffmpeg img2webp; do command -v "$c" >/dev/null || { echo "needs $c" >&2; exit 1; }; done
 
 # The UI, built, plus the driver.
 (cd "$ROOT/web" && bun run build >/dev/null)
@@ -56,7 +56,10 @@ wait "$REC"
 
 # The launch clip at full resolution, and the README's GIF of the whole tour.
 ffmpeg -loglevel error -y -i "$TMP/tour.mov" -t "$CLIP" -vf "fps=60" -c:v libx264 -crf 17 -preset slow -pix_fmt yuv420p -movflags +faststart "$ROOT/dist/tour.mp4"
-# The GIF: the glow's gradients make GIFs big, so it's 800 wide at 10 fps with a 64-colour palette (~9 MB).
-ffmpeg -loglevel error -y -i "$TMP/tour.mov" -vf "fps=10,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" "$ROOT/docs/tour.gif"
+# The README's tour as an animated WebP: full colour at 1200 wide and 15 fps in ~8 MB. A GIF of the
+# same quality is ~40 MB, because the turning, glowing map changes every pixel of every frame.
+mkdir "$TMP/wf"
+ffmpeg -loglevel error -i "$TMP/tour.mov" -vf "fps=15,scale=1200:-1:flags=lanczos" "$TMP/wf/f%04d.png"
+img2webp -loop 0 -lossy -q 72 -m 6 -d 67 "$TMP"/wf/f*.png -o "$ROOT/docs/tour.webp" >/dev/null
 cp "$TMP/tour.mov" "${TOUR_KEEP:-/dev/null}" 2>/dev/null || true
-ls -lh "$ROOT/dist/tour.mp4" "$ROOT/docs/tour.gif"
+ls -lh "$ROOT/dist/tour.mp4" "$ROOT/docs/tour.webp"
