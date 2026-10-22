@@ -47,7 +47,9 @@
   const press = async (fn) => { cur.style.transform = 'scale(.82)'; await sleep(90); fn?.(); cur.style.transform = ''; await sleep(140); };
   const center = (e) => { const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
   const el = (sel) => document.querySelector(sel);
-  const clickEl = async (sel, ms = 700) => { const e = el(sel); if (!e) return false; await move(...center(e), ms); await sleep(140); await press(() => e.click()); return true; };
+  // A real pointer leaves the map on its way to a button, which hides the hover card; say so.
+  const leaveMap = () => { for (const e of document.querySelectorAll('.m3d, #mhost canvas')) e.dispatchEvent(new PointerEvent('pointerleave', { pointerType: 'mouse' })); };
+  const clickEl = async (sel, ms = 700) => { const e = el(sel); if (!e) return false; leaveMap(); await move(...center(e), ms); await sleep(140); await press(() => e.click()); return true; };
   const toNode = async (stem, ms = 900) => {
     let p = T()?.locate(stem); if (!p) return false;
     await move(p[0] + 4, p[1] + 3, ms, true);
@@ -86,7 +88,8 @@
       await clickEl('#mreset', 800);
       await sleep(1800);
     },
-    // Open a memory from the map, then follow its links; Reset view brings the whole map back.
+    // Open a memory from the map, then follow its links; Reset view brings the whole map back,
+    // the flat 2D map is one tap away, and back to 3D so the loop joins up.
     async navigate() {
       await waitFor('.m3d canvas');
       await sleep(2200);
@@ -98,7 +101,13 @@
       if (await hop()) await sleep(1600);
       if (await hop()) await sleep(1600);
       await clickEl('#mreset', 800);
-      await sleep(2000);
+      await sleep(1400);
+      await clickEl('#mdim [data-v="2d"]', 800);
+      await sleep(1400);
+      await toNode('feedback_deploy_checklist', 900);
+      await sleep(1700);
+      await clickEl('#mdim [data-v="3d"]', 800);
+      await sleep(1800);
     },
     // Edit like notes: open a memory, type [[ and pick a memory to link; it reads as its name.
     async editor() {

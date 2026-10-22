@@ -20,7 +20,7 @@ for c in cliclick ffmpeg img2webp; do command -v "$c" >/dev/null || { echo "need
 
 # scene  page  seconds  (the page it starts on, and how long its timeline runs in tour-driver.js)
 SCENES="map map 13
-navigate map 14
+navigate map 22
 editor all 12
 loads what 9.5
 review review 10"

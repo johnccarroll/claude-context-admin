@@ -31,7 +31,7 @@ Every memory and its links, across every project, as a map you can turn. Hover t
 memory links to; click to open it, and follow its links from memory to memory. Orphans and
 near-duplicates stand out. The flat 2D map is one tap away.
 
-![Opening a memory from the 3D map: the camera flies in, the editor opens beside it, and each link followed flies to the next memory](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/navigate.webp)
+![Opening a memory from the 3D map: the camera flies in, the editor opens beside it, each link followed flies to the next memory, then the same map in flat 2D and back](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/navigate.webp)
 
 ### Edit memories like notes
 
