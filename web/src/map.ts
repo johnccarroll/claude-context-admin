@@ -38,6 +38,7 @@ export interface MapView {
   reset(): void;
   active(on: boolean): void;          // false: the map isn't on screen, so draw nothing
   theme(): void;
+  locate(id: string): [number, number] | null; // a memory's position in the map, for the recorded tour
   destroy(): void;
 }
 
@@ -189,7 +190,7 @@ function hooks(): Hooks {
 /** The floating controls' boxes, so names steer around them; read on resize, not every frame. */
 function measureBoxes(): void {
   const host = $('#map'), hb = host.getBoundingClientRect();
-  boxes = [...host.querySelectorAll<HTMLElement>('.mapbar, .mapkey.open')].map((el) => { const r = el.getBoundingClientRect(); return [r.left - hb.left - 6, r.top - hb.top - 6, r.right - hb.left + 6, r.bottom - hb.top + 6] as Box; });
+  boxes = [...host.querySelectorAll<HTMLElement>('.mapbar, .mapseg, .mapkey.open')].map((el) => { const r = el.getBoundingClientRect(); return [r.left - hb.left - 6, r.top - hb.top - 6, r.right - hb.left + 6, r.bottom - hb.top + 6] as Box; });
 }
 
 async function show(k: Kind): Promise<void> {
@@ -218,6 +219,14 @@ function setKey(open: boolean): void {
 
 function wire(): void {
   wired = true;
+  // scripts/tour.sh records the README tour: with ?tour it can ask where a memory is on screen.
+  if (new URLSearchParams(location.search).has('tour')) {
+    (window as unknown as { __mapLocate: (stem: string) => [number, number] | null }).__mapLocate = (stem) => {
+      const n = scene?.nodes.find((x) => x.id.endsWith('/' + stem + '.md'));
+      const p = n && view?.locate(n.id), b = $('#map').getBoundingClientRect();
+      return p ? [b.left + p[0], b.top + p[1]] : null;
+    };
+  }
   const map = $('#map'), btip = $('#mtip');
   // 3D needs a usable GPU: otherwise the option is there but disabled, with the reason.
   const b3 = $<HTMLButtonElement>('#mdim [data-v="3d"]');
@@ -239,13 +248,13 @@ function wire(): void {
   // Beside the vertical map tools; below the 2D | 3D switch in the header.
   let timer = 0, warm = 0, on: HTMLElement | null = null;
   const showTip = (b: HTMLElement, instant: boolean): void => {
-    const r = b.getBoundingClientRect(), side = !!b.closest('.mapbar');
+    const r = b.getBoundingClientRect(), side = !!b.closest('.mapbar, .mapseg');
     btip.textContent = b.dataset.tip ?? '';
     btip.classList.toggle('instant', instant);
     const w = btip.offsetWidth, h = btip.offsetHeight;
-    btip.style.setProperty('--o', side ? 'left center' : 'top center');
-    btip.style.left = (side ? r.right + 8 : Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))) + 'px';
-    btip.style.top = (side ? r.top + r.height / 2 - h / 2 : r.bottom + 8) + 'px';
+    btip.style.setProperty('--o', b.closest('.mapbar') ? 'left center' : 'top center');
+    btip.style.left = (side && b.closest('.mapbar') ? r.right + 8 : side ? Math.max(8, r.left + r.width / 2 - w / 2) : Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))) + 'px';
+    btip.style.top = (b.closest('.mapbar') ? r.top + r.height / 2 - h / 2 : r.bottom + 8) + 'px';
     btip.classList.add('on'); on = b;
   };
   function hideTip(): void { clearTimeout(timer); if (on) warm = performance.now(); on = null; btip.classList.remove('on'); }
@@ -263,7 +272,6 @@ function wire(): void {
 
   // Draw nothing while the map is off screen (another page, a hidden tab, a closed window).
   const vis = (): void => {
-    $('#mdim').hidden = $('#v-map').hidden || map.hidden; // the switch shows only on the map page, with a map to switch
     const v = !document.hidden && !$('#v-map').hidden && map.offsetParent !== null;
     if (v !== onScreen) { onScreen = v; view?.active(v); }
   };

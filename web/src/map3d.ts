@@ -221,11 +221,13 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       const dist = cam.position.distanceTo(v); v.project(cam as never);
       return { p, x: ((v.x + 1) / 2) * W, y: ((1 - v.y) / 2) * H, dist, behind: v.z > 1 };
     }).filter((q) => !q.behind).sort((a, b) => a.dist - b.dist);
-    const placedCaps: Box[] = [];
+    const placedCaps: Box[] = [], hud = hooks.boxes();
     for (const q of plist) {
       const label = S.label(q.p);
-      const [w] = chipSize(lx, T, label, S.count(q.p)), box: Box = [q.x - w / 2 - 3, q.y - 12, q.x + w / 2 + 3, q.y + 12];
-      const ok = !placedCaps.some((b) => b[0] < box[2] && b[2] > box[0] && b[1] < box[3] && b[3] > box[1]);
+      const [w] = chipSize(lx, T, label, S.count(q.p));
+      q.x = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, q.x)); // where drawChip will put it
+      const box: Box = [q.x - w / 2 - 3, q.y - 12, q.x + w / 2 + 3, q.y + 12];
+      const ok = ![...placedCaps, ...hud].some((b) => b[0] < box[2] && b[2] > box[0] && b[1] < box[3] && b[3] > box[1]); // never under a control
       if (ok) placedCaps.push(box);
       const cur = pa.get(q.p) ?? 0, target = ok ? 1 : 0;
       pa.set(q.p, Math.abs(cur - target) < 0.02 ? target : cur + (target - cur) * e);
@@ -323,6 +325,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       g.cameraPosition({ x: t.x + (c.x - t.x) / f, y: t.y + (c.y - t.y) / f, z: t.z + (c.z - t.z) / f }, { x: t.x, y: t.y, z: t.z }, hooks.reduce() ? 0 : 300);
       wake(500);
     },
+    locate(id) { const p = projected().find((q) => q.d.id === id); return p ? [p.x, p.y] : null; },
     reset() { kb = null; hover = null; touched = true; hooks.hover(null); el.style.cursor = ''; refresh(); home(hooks.reduce() ? 0 : 900); },
     active(v2) {
       on = v2;
