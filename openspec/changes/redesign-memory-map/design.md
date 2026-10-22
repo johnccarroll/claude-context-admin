@@ -80,17 +80,19 @@ their positions.
 - 2D: the simulation is marked settled after layout (its `alpha` set to 0), and the canvas draws
   only when something changed. The prototype redrew every frame because a stopped simulation
   still reports `alpha` 1.
-- 3D: `warmupTicks` settles the layout before the first frame; `cooldownTicks` stops the physics.
-  Particles run only on the focused memory's links. When nothing moves (no turn, no focus, no
-  camera move, no pointer) the view calls `pauseAnimation()` and the names layer stops; any input
-  resumes both. The turn stops on its own after 30 s; Reset view starts it again.
+- 3D: the layout settles on screen (the "lift" from the mockup), bounded by `cooldownTicks(300)`.
+  Signals run on every link at rest, and only on links between projects past ~250 links. The turn
+  and the signals run for a minute after the last input, then rest: the view calls
+  `pauseAnimation()` and the names layer stops; any input resumes both. Reset view starts it again.
 - Both pause when the map isn't the current view, the page is hidden, or the window is not
   visible.
-- The renderer's pixel ratio is capped at 2, and bloom renders at half resolution.
+- The renderer's pixel ratio is capped at 2. Bloom renders at full resolution (half resolution
+  visibly weakened the glow).
 
 Measured in the prototype at 500 memories (M5 Pro, Chromium): physics 14 points of main-thread
 time, particles 12, drawing 13, names 3; idle total 70%. Target: under 1% idle; 50 fps or more while
-turning with the CPU slowed 4×.
+turning with the CPU slowed 4×. Built: 0% at rest; 56 fps at 500 memories with the CPU slowed 4×;
+60 fps at 77.
 
 ### D5. Frame-rate independence
 
