@@ -348,7 +348,12 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       return d.n.r * k > 6.8 || k > 2;
     };
     const mid = new Map<string, [number, number]>();
-    for (const d of nodes) { if (d.a < 0.05) continue; const [x, y] = t.apply([d.x, d.y]); dots.push({ key: d.n.id, x, y, r: d.n.r * k + 1 }); const c = mid.get(d.n.project) ?? [0, 0]; c[0] += x; c[1]++; mid.set(d.n.project, c); }
+    for (const d of nodes) {
+      if (!S.shown.has(d.n.id)) continue;
+      const [x, y] = t.apply([d.x, d.y]);
+      const c = mid.get(d.n.project) ?? [0, 0]; c[0] += x; c[1]++; mid.set(d.n.project, c); // every shown memory, even while fading in
+      if (d.a >= 0.05) dots.push({ key: d.n.id, x, y, r: d.n.r * k + 1 });
+    }
     ctx.textBaseline = 'middle';
     const fontOf = (big: boolean): string => `${big ? 600 : 500} ${big ? 13.5 : 12}px ${T.ui}`;
     const order = nodes.filter(want).sort((a, b) => (+(b.n.id === f) - +(a.n.id === f)) || b.n.deg - a.n.deg);
