@@ -427,7 +427,16 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   .row .m .kind{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-.diff2.preview{max-height:260px;overflow-y:auto;margin-top:8px}
+/* What a suggestion would change: a quiet labelled list, before and after side by side in meaning */
+.changes{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 16px;margin:10px 0 0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:13px;max-height:280px;overflow-y:auto}
+.changes dt{color:var(--muted);font-size:12px;padding-top:1px}
+.changes dd{margin:0;color:var(--fg);min-width:0;overflow-wrap:anywhere}
+.changes dd.li,.changes dd.full{grid-column:2}
+.changes dd.full{grid-column:1 / -1;color:var(--muted)}
+.changes dd .tag{display:inline-block;min-width:3.6em;font:500 10.5px var(--f-mono);letter-spacing:.04em;text-transform:uppercase;margin-right:8px;color:var(--faint)}
+.changes dd.was{color:var(--muted);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--danger) 70%,transparent)}
+.changes dd.was .tag{text-decoration:none;color:var(--danger)}
+.changes dd.is .tag{color:color-mix(in srgb,#22c55e 80%,var(--fg))}
 .scopepill{display:inline-flex;align-items:center;gap:6px;padding:1px 8px 1px 7px;border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--fg);border-radius:999px;font-size:12.5px;}
 .scopepill span[aria-hidden]{color:var(--muted);margin-left:2px}
 .scopepill:hover span[aria-hidden]{color:var(--fg)}

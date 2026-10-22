@@ -375,6 +375,22 @@ function rowHTML(m: Mem): string {
 }
 
 /** The one empty state every page uses: what belongs here, and what to do about it. */
+/** What accepting a suggestion changes, as a labelled list: "Label: value" lines, indented lines as
+ *  list items under the label above, and "X, now" / "X, after" pairs as a before and after. */
+function changesHTML(text: string): string {
+  const rows: string[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    const item = line.match(/^\s{2,}(.*)$/), kv = line.match(/^([^:]{1,40}):\s?(.*)$/);
+    if (item) { rows.push(`<dd class="li">${esc(item[1])}</dd>`); continue; }
+    if (!kv) { rows.push(`<dd class="full">${esc(line)}</dd>`); continue; }
+    const [, k, v] = kv, ba = k.match(/^(.*), (now|after)$/);
+    if (ba) rows.push(`<dt>${ba[2] === 'now' ? esc(ba[1]) : ''}</dt><dd class="${ba[2] === 'now' ? 'was' : 'is'}"><span class="tag">${ba[2] === 'now' ? 'Now' : 'After'}</span>${esc(v)}</dd>`);
+    else rows.push(`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`);
+  }
+  return `<dl class="changes">${rows.join('')}</dl>`;
+}
+
 function emptyHTML(title: string, body: string, action = ''): string {
   return `<div class="empty"><b class="etitle">${esc(title)}</b>${esc(body)}${action ? `<div class="eact">${action}</div>` : ''}</div>`;
 }
@@ -503,7 +519,7 @@ function renderReview(): void {
   // main action rightmost).
   const card = (r: ReviewItem, dismissed = false): string => `<div class="card ${dismissed ? 'dim' : ''}" data-r="${esc(r.id)}">
     <div class="chead"><div class="ic ${r.tone}">${esc(r.icon)}</div><h3>${esc(r.title)}</h3><span class="src">${esc(r.source)}</span></div>
-    <div class="cbody"><p>${esc(r.body)}</p>${r.finding ? evidenceHTML(r) : ''}${r.preview ? `${r.preview.split('\n').length > 18 ? `<div class="hint">${r.preview.split('\n').length} lines: scroll to read all of it before accepting.</div>` : ''}<div class="diff2 preview">${esc(r.preview).split('\n').map((l) => `<div class="a">${l || ' '}</div>`).join('')}</div>` : ''}${r.previewBody ? `<div class="hint" style="margin-top:8px">The text it would write:</div><div class="rich preview">${richHTML(r.previewBody.text, r.previewBody.dir)}</div>` : ''}${r.pills ? `<div class="pillrow">${r.pills.map(([t, c]) => `<span class="pill ${c}">${esc(t)}</span>`).join('<span style="color:var(--faint)">→</span>')}</div>` : ''}
+    <div class="cbody"><p>${esc(r.body)}</p>${r.finding ? evidenceHTML(r) : ''}${r.preview ? `${r.preview.split('\n').length > 18 ? `<div class="hint">${r.preview.split('\n').length} lines: scroll to read all of it before accepting.</div>` : ''}${changesHTML(r.preview)}` : ''}${r.previewBody ? `<div class="hint" style="margin-top:8px">The text it would write:</div><div class="rich preview">${richHTML(r.previewBody.text, r.previewBody.dir)}</div>` : ''}${r.pills ? `<div class="pillrow">${r.pills.map(([t, c]) => `<span class="pill ${c}">${esc(t)}</span>`).join('<span style="color:var(--faint)">→</span>')}</div>` : ''}
     ${r.compare ? `<div class="cmp" data-a="${esc(r.compare[0].id)}" data-b="${esc(r.compare[1].id)}">${r.compare.map((x, i) => `<div class="cmpcol"><div class="cmphead"><span class="dot" style="background:${model.projectOf(x.project).color}"></span><button class="link2" data-open="${esc(x.id)}">${esc(x.title)}</button><span class="hint">${esc(model.projectOf(x.project).label)} · ${i ? 'right' : 'left'}</span></div><div class="hint">${esc(x.desc)}</div><div class="cmpbody"><span class="hint">Loading…</span></div></div>`).join('')}</div>` : ''}
     ${r.targets && r.targets.length > 1 ? targets(r) : r.targets ? `<div class="pillrow">${r.targets.map((t) => t.mem ? pill(t.mem) : `<span class="pill">${esc(t.label)}</span>`).join('')}</div>` : r.mems?.length ? `<div class="pillrow">${r.mems.map(pill).join('')}</div>` : ''}</div>
     <div class="acts">${dismissed ? '<span class="hint">Dismissed</span><span class="spacer"></span><button class="btn sm" data-a="restore">Show again</button>'
