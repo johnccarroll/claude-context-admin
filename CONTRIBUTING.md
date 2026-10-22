@@ -1,6 +1,9 @@
 # Contributing
 
-Issues and pull requests are welcome, under the [code of conduct](CODE_OF_CONDUCT.md). For a vulnerability, use the private report in
+Ideas are as welcome as code. If something is missing, confusing or could work better, [open an
+idea](https://github.com/johnccarroll/claude-context-admin/issues/new?template=idea.md); a rough
+one is fine. Bug reports and pull requests are welcome too, under the
+[code of conduct](CODE_OF_CONDUCT.md). For a vulnerability, use the private report in
 [SECURITY.md](SECURITY.md), not an issue.
 
 ## Build and test

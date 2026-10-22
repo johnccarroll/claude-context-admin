@@ -177,6 +177,12 @@ make dev      # live dev server on a made-up demo home: UI edits reload, Go edit
 make dev-real # the same on your real config, read-only (scripts/dev.sh write: editable)
 ```
 
+## Ideas and contributions
+
+Ideas are as welcome as code. If something is missing or could work better,
+[open an idea](https://github.com/johnccarroll/claude-context-admin/issues/new?template=idea.md).
+[CONTRIBUTING.md](CONTRIBUTING.md) covers bugs and pull requests.
+
 ## License
 
 [MIT](LICENSE) © 2026 John Carroll. Release builds list their open-source components in
