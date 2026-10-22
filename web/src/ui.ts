@@ -67,8 +67,9 @@ export function menu(at: HTMLElement | MouseEvent, items: MenuItem[]): void {
   m.innerHTML = items.map((it, i) => (it ? `<button role="menuitem" data-i="${i}">${esc(it[0])}</button>` : '<hr>')).join('');
   document.body.appendChild(m);
   const [x0, y0] = at instanceof MouseEvent ? [at.clientX, at.clientY] : [at.getBoundingClientRect().left, at.getBoundingClientRect().bottom + 4];
-  m.style.left = Math.min(x0, innerWidth - m.offsetWidth - 8) + 'px';
-  m.style.top = Math.min(y0, innerHeight - m.offsetHeight - 8) + 'px';
+  const left = Math.min(x0, innerWidth - m.offsetWidth - 8), top = Math.min(y0, innerHeight - m.offsetHeight - 8);
+  m.style.left = left + 'px'; m.style.top = top + 'px';
+  m.style.setProperty('--o', `${left < x0 ? 'right' : 'left'} ${top < y0 ? 'bottom' : 'top'}`); // grows from where it opened
   $$('button', m).forEach((x) => (x.onclick = () => { m.remove(); items[Number(x.dataset.i)]?.[1](); }));
   ($('button', m) as HTMLButtonElement).focus();
   const close = (e: Event): void => {
