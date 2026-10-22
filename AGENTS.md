@@ -14,3 +14,5 @@ Fixtures, demos and screenshots use made-up data only (`scripts/demo-home.py`).
   Claude Code rewrites `~/.claude.json` constantly, so never write to it directly.
 - Never read, log, return or commit MCP env or header values, or other secrets.
 - Tests are `go test ./...` against fixtures in `testdata/`. Never test against the real `~/.claude`.
+- Plan any non-trivial change with OpenSpec (`openspec/`): propose it, keep its tasks current while
+  building, and archive it once merged. `openspec/` is git-ignored and stays local; never commit it.

@@ -25,6 +25,10 @@ make dev      # live dev server on a made-up demo home
   repo.
 - **Pinned actions.** Workflows pin every action to a full commit SHA.
 
+For a larger change, open an issue first to agree the approach. The maintainer plans changes with
+[OpenSpec](https://github.com/Fission-AI/OpenSpec) in a local, git-ignored `openspec/`; you don't
+need it, and it never belongs in a pull request.
+
 Commits follow [Conventional Commits](https://www.conventionalcommits.org). A change users will
 notice gets a line in [CHANGELOG.md](CHANGELOG.md). Releases are described in
 [docs/RELEASING.md](docs/RELEASING.md).
