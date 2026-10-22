@@ -16,7 +16,7 @@ see how they connect in a memory graph, check what each project costs in tokens,
 what's broken, stale or duplicated. Nothing changes until you approve it, and every version is
 kept, whether you or Claude made the change.
 
-![A tour: the memory graph across projects, a dotted line to the same note in another project, open a memory, follow a link, fix a broken one, then what loads and Review](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/tour.gif)
+![A tour: the memory map in 3D turning, swung around and zoomed in, a memory opened and its links followed from one to the next, then the same map flat, what loads and Review](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/tour.gif)
 
 ## What it does
 
@@ -32,10 +32,10 @@ from memory to memory, and step back with the arrows.
 
 ### See how your memories connect
 
-The map draws every memory and its links across projects, so orphans and near-duplicates stand
-out. Dotted lines join a memory written in two projects. Hover to preview, click to open.
+The map draws every memory and its links across projects in 3D, so orphans and near-duplicates
+stand out. Hover to light up a memory's links, click to open it, or switch to the flat 2D map.
 
-![Map of how memories connect across projects](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/map.png)
+![The memory map in 3D: each project a glowing cluster, named, with links between them](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/screenshots/map.png)
 
 ### See what Claude loads, and what it costs
 
