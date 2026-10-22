@@ -66,9 +66,9 @@ while read -r scene page secs; do
 
   # Skip the reload flash, keep the scene. Full quality for sharing; a WebP for the README.
   ffmpeg -nostdin -loglevel error -y -ss 1.6 -t "$secs" -i "$TMP/$scene.mov" -vf "fps=60" -c:v libx264 -crf 16 -preset slow -pix_fmt yuv420p -movflags +faststart "$ROOT/dist/clips/$scene.mp4"
-  # The WebP: 1440 wide (sharp on Retina in GitHub's ~880 px column), 24 fps, full colour.
+  # The WebP: 1440 wide (sharp on Retina in GitHub's ~880 px column), 60 fps, full colour.
   rm -rf "$TMP/wf"; mkdir "$TMP/wf"
-  ffmpeg -nostdin -loglevel error -i "$ROOT/dist/clips/$scene.mp4" -vf "fps=24,scale=1440:-1:flags=lanczos" "$TMP/wf/f%04d.png"
-  img2webp -loop 0 -lossy -q 80 -m 4 -d 42 "$TMP"/wf/f*.png -o "$ROOT/docs/clips/$scene.webp" >/dev/null
+  ffmpeg -nostdin -loglevel error -i "$ROOT/dist/clips/$scene.mp4" -vf "fps=60,scale=1440:-1:flags=lanczos" "$TMP/wf/f%04d.png"
+  img2webp -loop 0 -lossy -q 80 -m 4 -d 17 "$TMP"/wf/f*.png -o "$ROOT/docs/clips/$scene.webp" >/dev/null
   ls -lh "$ROOT/docs/clips/$scene.webp"
 done <<< "$SCENES"
