@@ -1013,8 +1013,6 @@ function fixLink(at: HTMLElement, m: Mem, key: string): void {
   ]);
 }
 
-/** Typing [[ in memory text lists the memories it can link to (dir's own, then Everywhere);
- *  picking one writes its link. Arrows move, Enter or Tab picks, Escape closes. */
 /** Whether the editor's Connections section starts open (it remembers the last choice). */
 const connOpen = (): boolean => { try { return localStorage.getItem('cca-conn') !== '0'; } catch { return true; } };
 
@@ -1082,6 +1080,8 @@ function editTools(ta: HTMLTextAreaElement, dir: () => string, row: HTMLElement)
   });
 }
 
+/** Typing [[ in memory text lists the memories it can link to (dir's own, then Everywhere);
+ *  picking one writes its link. Arrows move, Enter or Tab picks, Escape closes. */
 function linkPicker(ta: HTMLTextAreaElement, dir: () => string, self?: Mem): void {
   const box = document.createElement('div');
   box.className = 'lpick'; box.id = ta.id + '-links'; box.setAttribute('role', 'listbox'); box.hidden = true;
