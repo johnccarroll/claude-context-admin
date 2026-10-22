@@ -190,7 +190,7 @@ function hooks(): Hooks {
 /** The floating controls' boxes, so names steer around them; read on resize, not every frame. */
 function measureBoxes(): void {
   const host = $('#map'), hb = host.getBoundingClientRect();
-  boxes = [...host.querySelectorAll<HTMLElement>('.mapbar, .mapkey.open')].map((el) => { const r = el.getBoundingClientRect(); return [r.left - hb.left - 6, r.top - hb.top - 6, r.right - hb.left + 6, r.bottom - hb.top + 6] as Box; });
+  boxes = [...host.querySelectorAll<HTMLElement>('.mapbar, .mapseg, .mapkey.open')].map((el) => { const r = el.getBoundingClientRect(); return [r.left - hb.left - 6, r.top - hb.top - 6, r.right - hb.left + 6, r.bottom - hb.top + 6] as Box; });
 }
 
 async function show(k: Kind): Promise<void> {
@@ -247,17 +247,18 @@ function wire(): void {
   // Control tooltips: the first waits a moment, the next ones show at once while moving along.
   let timer = 0, warm = 0, on: HTMLElement | null = null;
   const showTip = (b: HTMLElement, instant: boolean): void => {
-    const r = b.getBoundingClientRect();
+    // Left of the zoom stack, below the 2D | 3D toggle: always toward the map, never off its edge.
+    const r = b.getBoundingClientRect(), stack = !!b.closest('.mapbar');
     btip.textContent = b.dataset.tip ?? '';
     btip.classList.toggle('instant', instant);
     const w = btip.offsetWidth, h = btip.offsetHeight;
-    btip.style.setProperty('--o', 'bottom center');
-    btip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
-    btip.style.top = r.top - h - 8 + 'px';
+    btip.style.setProperty('--o', stack ? 'right center' : 'top center');
+    btip.style.left = (stack ? r.left - w - 8 : Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+    btip.style.top = (stack ? r.top + r.height / 2 - h / 2 : r.bottom + 8) + 'px';
     btip.classList.add('on'); on = b;
   };
   function hideTip(): void { clearTimeout(timer); if (on) warm = performance.now(); on = null; btip.classList.remove('on'); }
-  for (const b of document.querySelectorAll<HTMLElement>('#map .mapbar [data-tip]')) {
+  for (const b of document.querySelectorAll<HTMLElement>('#map .mapbar [data-tip], #mdim [data-tip]')) {
     b.addEventListener('pointerenter', (e) => {
       if (e.pointerType !== 'mouse') return;
       clearTimeout(timer);

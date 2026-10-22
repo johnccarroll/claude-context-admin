@@ -286,6 +286,14 @@ function heading(title: string, sub: string): void {
   // The project chip sits beside the title; the subtitle line keeps only text.
   $('#scope').innerHTML = p ? `<button class="scopepill" id="scopex" title="Show all projects"><span class="dot" style="background:${p.color}"></span>${esc(p.label)}<span aria-hidden="true">×</span></button>` : '';
   $('#sub').textContent = sub;
+  // Any filter on: say so where the count is, with the way out right beside it.
+  const searchable = ui.view === 'all' || ui.view === 'map';
+  if (ui.layer || (searchable && (ui.kind || ui.q)) || (ui.view === 'review' && ui.rcat)) {
+    const b = document.createElement('button');
+    b.className = 'fclear'; b.textContent = 'Clear filters';
+    b.onclick = () => { ui.layer = ''; ui.kind = ''; ui.rcat = ''; ui.q = ''; ($('#q') as HTMLInputElement).value = ''; render(); };
+    $('#sub').append(' · ', b);
+  }
   const x = document.getElementById('scopex');
   if (x) x.onclick = () => { ui.proj = ''; ui.layer = ''; render(); };
 }
@@ -307,17 +315,28 @@ function pageItems(): { layer: Layer; kind: string }[] {
   return all.filter((x) => inScope(x.layer, x.project)).map((x) => ({ layer: x.layer, kind: x.kind ?? '' }));
 }
 
+/** One filter: a labelled segmented control, so it reads as "pick one of these". */
+function segHTML(key: string, label: string, opts: { v: string; text: string; n?: number; tip?: string; dot?: string }[], cur: string): string {
+  return `<div class="fseg" role="radiogroup" aria-label="${esc(label)}"><span class="flabel" aria-hidden="true">${esc(label)}</span>` +
+    opts.map((o) => `<button role="radio" data-${key}="${esc(o.v)}" aria-checked="${o.v === cur}"${o.tip ? ` title="${esc(o.tip)}"` : ''}>${o.dot ? `<span class="dot" style="background:${o.dot}"></span>` : ''}${esc(o.text)}${o.n !== undefined ? `<span class="n">${o.n}</span>` : ''}</button>`).join('') + '</div>';
+}
+
 function renderChips(): void {
+  const wire = (): void => $$('#chips [role="radio"]').forEach((b) => (b.onclick = () => {
+    if (b.dataset.l !== undefined) ui.layer = b.dataset.l;
+    else if (b.dataset.k !== undefined) ui.kind = b.dataset.k;
+    else ui.rcat = b.dataset.c ?? '';
+    render();
+  }));
   if (ui.view === 'review') { // categories instead of layers
     const open = openReview();
     const n = new Map<string, number>();
     for (const r of open) n.set(rcat(r), (n.get(rcat(r)) ?? 0) + 1);
     if (ui.rcat && !n.has(ui.rcat)) ui.rcat = '';
     const cats = [...RCAT.map(([c]) => c), 'Other'].filter((c) => n.has(c));
-    $('#chips').innerHTML = cats.length > 1 ? `<button class="chip" data-c="" aria-pressed="${!ui.rcat}">All · ${open.length}</button>` +
-      cats.map((c) => `<button class="chip" data-c="${esc(c)}" aria-pressed="${ui.rcat === c}">${esc(c)} · ${n.get(c)}</button>`).join('') : '';
+    $('#chips').innerHTML = cats.length > 1 ? segHTML('c', 'Show', [{ v: '', text: 'All', n: open.length }, ...cats.map((c) => ({ v: c, text: c, n: n.get(c) }))], ui.rcat) : '';
     $('#chips').hidden = cats.length < 2;
-    $$('#chips .chip').forEach((b) => (b.onclick = () => { ui.rcat = b.dataset.c ?? ''; render(); }));
+    wire();
     return;
   }
   const items = pageItems();
@@ -326,25 +345,22 @@ function renderChips(): void {
   if (ui.layer && !byLayer.has(ui.layer as Layer)) ui.layer = '';
   const order = Object.keys(LAYER);
   const layers = [...byLayer].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
-  const name = (l: Layer): string => (l === 'project' && ui.proj && ui.proj !== GLOBAL ? model.projectOf(ui.proj).label : LAYER[l][0]);
-  const layerChips = layers.length > 1
-    ? `<button class="chip" data-l="" aria-pressed="${!ui.layer}">All · ${items.length}</button>` +
-      layers.map(([l, n]) => `<button class="chip" data-l="${l}" aria-pressed="${ui.layer === l}" title="${esc(LAYER[l][1])}">${esc(name(l))} · ${n}</button>`).join('')
+  // Under All projects, 'Project' alone is vague: it means each memory's own project.
+  const name = (l: Layer): string => (l === 'project' ? (ui.proj && ui.proj !== GLOBAL ? model.projectOf(ui.proj).label : 'One project') : LAYER[l][0]);
+  const layerSeg = layers.length > 1
+    ? segHTML('l', 'Loads in', [{ v: '', text: 'All', n: items.length }, ...layers.map(([l, n]) => ({ v: l, text: name(l), n, tip: LAYER[l][1], dot: l === 'user' ? model.projectOf(GLOBAL).color : l === 'project' && ui.proj && ui.proj !== GLOBAL ? model.projectOf(ui.proj).color : undefined }))], ui.layer)
     : '';
-  let kindChips = '';
+  let kindSeg = '';
   if ((ui.view === 'all' || ui.view === 'map') && items.length) {
     const c = new Map<string, number>();
-    for (const x of items) if (!ui.layer || x.layer === ui.layer) c.set(x.kind, (c.get(x.kind) ?? 0) + 1);
+    let total = 0;
+    for (const x of items) if (!ui.layer || x.layer === ui.layer) { c.set(x.kind, (c.get(x.kind) ?? 0) + 1); total++; }
     if (ui.kind && !c.has(ui.kind)) ui.kind = '';
-    kindChips = `<button class="chip" data-k="" aria-pressed="${!ui.kind}">Any kind</button>` +
-      Object.keys(KIND).filter((k) => c.get(k)).map((k) => `<button class="chip" data-k="${k}" aria-pressed="${ui.kind === k}" title="${KHELP[k]}">${PLURAL[k]} · ${c.get(k)}</button>`).join('');
+    kindSeg = segHTML('k', 'Kind', [{ v: '', text: 'All', n: total }, ...Object.keys(KIND).filter((k) => c.get(k)).map((k) => ({ v: k, text: PLURAL[k], n: c.get(k), tip: KHELP[k] }))], ui.kind);
   }
-  $('#chips').innerHTML = layerChips + (layerChips && kindChips ? '<span class="chipsep"></span>' : '') + kindChips;
-  $('#chips').hidden = !layerChips && !kindChips;
-  $$('#chips .chip').forEach((b) => (b.onclick = () => {
-    if (b.dataset.l !== undefined) ui.layer = b.dataset.l; else ui.kind = b.dataset.k ?? '';
-    render();
-  }));
+  $('#chips').innerHTML = layerSeg + kindSeg;
+  $('#chips').hidden = !layerSeg && !kindSeg;
+  wire();
 }
 
 const linkIcon = '<svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="10" r="2.5"/><circle cx="15" cy="5" r="2.5"/><circle cx="15" cy="15" r="2.5"/><path d="M7.3 9l5.4-3M7.3 11l5.4 3"/></svg>';
