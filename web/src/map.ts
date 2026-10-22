@@ -39,6 +39,7 @@ export interface MapView {
   active(on: boolean): void;          // false: the map isn't on screen, so draw nothing
   theme(): void;
   locate(id: string): [number, number] | null; // a memory's position in the map, for the recorded tour
+  turn?(deg: number, ms: number): void;           // swing the 3D camera around, for the recorded tour
   destroy(): void;
 }
 
@@ -249,12 +250,17 @@ function setKey(open: boolean): void {
 
 function wire(): void {
   wired = true;
-  // scripts/tour.sh records the README tour: with ?tour it can ask where a memory is on screen.
+  // scripts/tour.sh records the README tour in the real app: with ?tour its driver can find a memory
+  // on screen, open it and swing the camera. Nothing here runs without ?tour.
   if (new URLSearchParams(location.search).has('tour')) {
-    (window as unknown as { __mapLocate: (stem: string) => [number, number] | null }).__mapLocate = (stem) => {
-      const n = scene?.nodes.find((x) => x.id.endsWith('/' + stem + '.md'));
-      const p = n && view?.locate(n.id), b = $('#map').getBoundingClientRect();
-      return p ? [b.left + p[0], b.top + p[1]] : null;
+    const find = (stem: string): MNode | undefined => scene?.nodes.find((x) => x.id.endsWith('/' + stem + '.md'));
+    (window as unknown as { __mapTour: unknown }).__mapTour = {
+      locate: (stem: string): [number, number] | null => {
+        const n = find(stem), p = n && view?.locate(n.id), b = $('#map').getBoundingClientRect();
+        return p ? [b.left + p[0], b.top + p[1]] : null;
+      },
+      open: (stem: string): void => { const n = find(stem); if (n?.mem) openFn(n.mem); },
+      turn: (deg: number, ms: number): void => view?.turn?.(deg, ms),
     };
   }
   const map = $('#map'), btip = $('#mtip');

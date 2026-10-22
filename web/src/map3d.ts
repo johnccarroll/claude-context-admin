@@ -338,6 +338,13 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       wake(500);
     },
     locate(id) { const p = projected().find((q) => q.d.id === id); return p ? [p.x, p.y] : null; },
+    turn(deg, ms) { // around the point being looked at, keeping the distance
+      const c = (g.camera() as unknown as { position: Vector3 }).position, t = ctl.target, a = (deg * Math.PI) / 180;
+      const dx = c.x - t.x, dz = c.z - t.z;
+      touched = true; live(); ctl.autoRotate = false; clearTimeout(idle);
+      g.cameraPosition({ x: t.x + dx * Math.cos(a) - dz * Math.sin(a), y: c.y, z: t.z + dx * Math.sin(a) + dz * Math.cos(a) }, { x: t.x, y: t.y, z: t.z }, ms);
+      wake(ms + 300); idle = window.setTimeout(spin, ms + RESUME_AFTER);
+    },
     reset() { kb = null; hover = null; touched = true; hooks.hover(null); el.style.cursor = ''; refresh(); home(hooks.reduce() ? 0 : 900); },
     active(v2) {
       on = v2;
