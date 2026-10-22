@@ -800,8 +800,9 @@ function renderMCP(): void {
     wireEmpty('#v-mcp');
     return;
   }
-  $('#v-mcp').innerHTML = `<div class="tk"><div class="banner"><span class="ic2">⚿</span><div><b>Keys stay hidden</b>Secret values are never read into this app or shown to Claude. Only key names appear.</div></div>` +
-    groups.filter(([, xs]) => xs.length).map(([g, xs]) => `<div class="tgroup"><div class="gh">${g}<span class="n">${xs.length}</span></div>${rowsHTML(xs)}</div>`).join('') + '</div>';
+  $('#v-mcp').innerHTML = '<div class="tk">' +
+    groups.filter(([, xs]) => xs.length).map(([g, xs]) => `<div class="tgroup"><div class="gh">${g}<span class="n">${xs.length}</span></div>${rowsHTML(xs)}</div>`).join('') +
+    '<p class="hint">Keys stay hidden: secret values are never read into this app or shown to Claude, only their names.</p></div>';
   wireRows($('#v-mcp'), rows);
 }
 
@@ -1294,7 +1295,7 @@ const when = (iso: string): string => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
-const WHO: Record<string, [string, string]> = { you: ['You', 'You saved it'], claude: ['C', 'Claude changed it'], original: ['·', 'First saved copy'] };
+const WHO: Record<string, [string, string]> = { you: ['You', 'You saved it'], claude: ['✦', 'Claude changed it'], original: ['·', 'First saved copy'] };
 
 
 /** The History tab of the open drawer: versions of path, newest first, with a diff and restore.
@@ -1358,7 +1359,7 @@ async function renderActivity(): Promise<void> {
     const d = day(a.at), head = d !== lastDay ? `<div class="actday">${esc(d)}</div>` : '';
     lastDay = d;
     const target = openable(a);
-    return `${head}<div class="arow ${target ? 'go' : ''}" data-act="${esc(a.id)}" ${target ? 'tabindex="0" title="See what changed"' : ''} style="${a.undone ? 'opacity:.5' : ''}"><span class="who ${a.who === 'you' ? 'you' : ''}">${a.who === 'you' ? 'You' : 'C'}</span><div class="what">${esc(a.title)}${a.detail ? `<span>${esc(a.detail)}</span>` : ''}</div><time>${esc(time(a.at))}</time>${a.undone ? '<span class="hint">Undone</span>' : a.canUndo ? `<button class="btn sm" data-undo="${esc(a.id)}">Undo</button>` : '<span class="hint" title="There\'s no saved copy from before this change (Claude Code made it while this app wasn\'t running), or the file changed again since. Open it and use History to restore an earlier version.">Can\'t undo</span>'}</div>`;
+    return `${head}<div class="arow ${target ? 'go' : ''}" data-act="${esc(a.id)}" ${target ? 'tabindex="0" title="See what changed"' : ''} style="${a.undone ? 'opacity:.5' : ''}"><span class="who ${a.who === 'you' ? 'you' : 'claude'}" title="${a.who === 'you' ? 'You' : 'Claude'}">${a.who === 'you' ? 'You' : '✦'}</span><div class="what">${esc(a.title)}${a.detail ? `<span>${esc(a.detail)}</span>` : ''}</div><time>${esc(time(a.at))}</time>${a.undone ? '<span class="hint">Undone</span>' : a.canUndo ? `<button class="btn sm" data-undo="${esc(a.id)}">Undo</button>` : '<span></span>'}</div>`;
   }).join('');
   $('#v-activity').innerHTML = `<div class="rv"><div class="act">${rows || '<div class="done">No changes yet. Edits you make here, and memory changes Claude makes while cca is open, show up in this list.</div>'}</div>
     <p class="hint" style="margin-top:14px">Claude’s own memory edits are recorded while cca is running, so you can always go back.</p></div>`;
