@@ -2,9 +2,9 @@
 
 **Take control of your Claude config. Less bloat. Fewer wasted tokens.**
 
-[![test](https://github.com/johnccarroll/claude-context-admin/actions/workflows/test.yml/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/test.yml)
+[![Tests](https://github.com/johnccarroll/claude-context-admin/actions/workflows/test.yml/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/test.yml)
 [![CodeQL](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/github-code-scanning/codeql)
-[![canary](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml)
+[![Canary](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml/badge.svg)](https://github.com/johnccarroll/claude-context-admin/actions/workflows/canary.yml)
 
 ![Every memory across your projects as a 3D map: glowing clusters, named, turning; a hand swings it around and a hover lights up one memory's links](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/map.webp)
 

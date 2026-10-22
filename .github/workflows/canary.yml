@@ -1,4 +1,4 @@
-name: canary
+name: Canary
 
 # Every day against the newest Claude Code: catches a release that changes what cca reads
 # before users notice. It also re-checks for known vulnerabilities, since advisories land between
