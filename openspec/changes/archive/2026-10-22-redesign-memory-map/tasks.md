@@ -32,10 +32,10 @@
 
 ## 6. Integration checks
 
-- [ ] 6.1 `make check` passes (Go tests, tsc, bun test, vet, govulncheck), and the loopback-only network test passes with the new chunk
+- [x] 6.1 `make check` passes (Go tests, tsc, bun test, vet, govulncheck), and the loopback-only network test passes with the new chunk
 - [x] 6.2 Measure the targets on the demo home and a 500-memory home: idle under 1%, 50 fps or more at 4× CPU slowdown, and record before/after numbers
 - [x] 6.3 Screenshots of both views, both themes, desktop and phone, read back; `web-design-guidelines` review of the changed UI
-- [ ] 6.4 Retake `docs/screenshots/map.png`, `docs/tour.gif` and a 12-second launch clip in 3D from the demo home; update README and CHANGELOG
+- [x] 6.4 Record the README clips in the Mac app from the demo home (`scripts/tour.sh`: the 3D map, navigating it and the 2D view, the editor, What loads here, Review) in place of `docs/tour.gif`; update README and CHANGELOG
 
 ## Workflow follow-up
 
