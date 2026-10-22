@@ -229,24 +229,29 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 /* The 3D stage is dark in both themes, like a media viewer; its controls follow it. */
 .map.is3d{background:radial-gradient(120% 90% at 50% 45%,#0d0b14 0%,#030305 70%);--glass-strong:rgba(18,16,24,.78);--line:rgba(255,255,255,.1);--line-2:rgba(255,255,255,.16);--fg:#ededf0;--muted:#a1a1aa;--faint:#6e6e78;--sunk:rgba(255,255,255,.07);--surface:#16151c;color:#ededf0}
 /* Map tools: a vertical stack, bottom left, where the editor (which opens on the right) never covers it */
-.mapbar{position:absolute;left:16px;bottom:16px;z-index:3;display:flex;flex-direction:column;align-items:center;padding:2px;border-radius:14px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line)}
-.mapbar>button{position:relative;border:0;background:none;width:40px;height:44px;border-radius:10px;display:grid;place-items:center;color:var(--muted);transition:background-color .12s ease,color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
-.mapbar>button::after,.mapseg button::after{content:"";position:absolute;inset:0 -2px} /* 44px wide targets */
+/* One toolbar, centred along the bottom of the map; it recentres in the space left of the editor */
+.mapdock{position:absolute;left:50%;bottom:16px;z-index:3;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;transition:transform .26s cubic-bezier(.23,1,.32,1)}
+.app:has(#drawer.open) .mapdock{transform:translateX(calc(-50% - var(--dw) / 2))}
+@media (max-width:860px){.app:has(#drawer.open) .mapdock{opacity:0;pointer-events:none}} /* the editor covers most of the map */
+.mapbar{display:flex;align-items:center;padding:3px;border-radius:14px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(0,0,0,.5)}
+.mapbar>button{position:relative;border:0;background:none;width:34px;height:32px;border-radius:9px;display:grid;place-items:center;color:var(--muted);transition:background-color .12s ease,color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
+.mapbar>button::after,.mapseg button::after{content:"";position:absolute;inset:-6px -3px} /* 44px tall targets */
 .mapbar>button:active{transform:scale(.92)}
 .mapbar>button[aria-expanded="true"]{background:var(--sunk);color:var(--fg)}
-.mapbar svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.mapbar svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 @media (hover:hover) and (pointer:fine){.mapbar>button:hover{background:var(--sunk);color:var(--fg)}}
-.msep{width:18px;height:1px;background:var(--line-2);margin:4px 0}
+.msep{width:1px;height:16px;background:var(--line-2);margin:0 5px}
 /* 2D | 3D: top left of the map, the corner you read first; the tools sit below it, bottom left */
-.mapseg{position:absolute;top:16px;left:16px;z-index:3;display:grid;grid-template-columns:1fr 1fr;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:12px;padding:2px}
-.mapseg button{position:relative;z-index:1;border:0;background:none;width:48px;height:36px;border-radius:8px;font:600 12px/1 var(--f-mono);letter-spacing:.02em;color:var(--muted);transition:color .16s ease}
-.mapseg button::after{inset:-4px 0} /* 44px tall targets */
+/* 2D | 3D, the first thing in the toolbar */
+.mapseg{position:relative;display:grid;grid-template-columns:1fr 1fr;background:var(--sunk);border-radius:10px;padding:2px}
+.mapseg button{position:relative;z-index:1;border:0;background:none;width:40px;height:30px;border-radius:8px;font:600 12px/1 var(--f-mono);letter-spacing:.02em;color:var(--muted);transition:color .16s ease}
+.mapseg button::after{inset:-1px 0}
 .mapseg button[aria-checked="true"]{color:var(--fg)}
 .mapseg button:disabled{opacity:.4;cursor:not-allowed}
 .mapseg .thumb{position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:9px;background:color-mix(in srgb,var(--fg) 13%,transparent);box-shadow:0 1px 2px rgba(0,0,0,.18),inset 0 0 0 1px var(--line);transition:transform .22s cubic-bezier(.23,1,.32,1)}
 .mapseg[data-v="3d"] .thumb{transform:translateX(100%)}
-.mapkey{position:absolute;left:70px;bottom:16px;z-index:4;width:min(300px,calc(100% - 32px));padding:12px 14px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);font-size:12.5px;color:var(--muted);display:grid;gap:8px;transform-origin:bottom left;opacity:0;transform:scale(.96) translateX(-4px);pointer-events:none;transition:opacity .14s ease,transform .18s cubic-bezier(.23,1,.32,1)}
-.mapkey.open{opacity:1;transform:none;pointer-events:auto}
+.mapkey{width:min(300px,calc(100vw - 48px));padding:12px 14px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);font-size:12.5px;color:var(--muted);display:grid;gap:8px;transform-origin:bottom center;opacity:0;transform:scale(.96) translateY(4px);pointer-events:none;visibility:hidden;transition:opacity .14s ease,transform .18s cubic-bezier(.23,1,.32,1),visibility 0s .18s}
+.mapkey.open{opacity:1;transform:none;pointer-events:auto;visibility:visible;transition-delay:0s}
 .map:not(.is3d) .mapkey [data-only="3d"],.map.is3d .mapkey [data-only="2d"]{display:none}
 .mapkey .kt{font:500 11px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
 .mapkey .kr{display:flex;gap:10px;align-items:center}
@@ -262,7 +267,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .mtip.on{opacity:1;transform:none}
 .mtip.instant{transition-duration:0ms}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-@media (prefers-reduced-motion:reduce){.mapseg .thumb,.mapkey,.mtip,.mapbar,.mhost.fade{transition:opacity .15s ease!important;animation:none!important;transform:none}}
+@media (prefers-reduced-motion:reduce){.mapseg .thumb,.mapkey,.mtip,.mapdock,.mhost.fade{transition:opacity .15s ease!important;animation:none!important;transform:none}}
 @media (prefers-reduced-transparency:reduce){.mapbar,.mapkey{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface)}}
 @media (prefers-contrast:more){.mapbar,.mapkey{background:var(--surface);border-color:var(--fg)}}
 /* Zoom buttons in the connections dialog */
