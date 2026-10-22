@@ -158,6 +158,8 @@
 
   addEventListener('load', async () => {
     document.body.append(cur); place();
-    try { await SCENES[scene](); } finally { document.title = 'tour-done'; }
+    // Only a scene this file defines: the name comes from the URL.
+    const run = Object.hasOwn(SCENES, scene) ? SCENES[scene] : null;
+    try { if (run) await run(); } finally { document.title = 'tour-done'; }
   });
 })();
