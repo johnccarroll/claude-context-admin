@@ -106,14 +106,25 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .search{display:flex;align-items:center;gap:8px;background:var(--glass-strong);border:1px solid var(--line);border-radius:12px;box-shadow:inset 0 1px 0 var(--rim);padding:0 10px;min-width:150px;flex:1 1 150px;max-width:280px}
 .search input{border:0;background:none;padding:8px 0;font:inherit;color:var(--fg);width:100%;outline:none}
 .search:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
-.chips{display:flex;gap:6px;padding:12px var(--gutter) 12px;overflow-x:auto;scrollbar-width:none;flex:none;mask-image:linear-gradient(to right,#000 calc(100% - 32px),transparent);padding-right:32px}
+.chips{display:flex;gap:10px;align-items:center;padding:12px var(--gutter) 12px;overflow-x:auto;scrollbar-width:none;flex:none;mask-image:linear-gradient(to right,#000 calc(100% - 32px),transparent);padding-right:32px}
 /* Header and filter pills read as one bar: no line between them, one under the pills */
 .main:not(.selecting) .top:has(~ .chips:not([hidden])){border-bottom-color:transparent}
 .main:not(.selecting) .top:has(~ .chips:not([hidden])) ~ .chips{padding-top:2px}
 .main:not(.selecting) .chips:not([hidden]) ~ .view{border-top:1px solid var(--line)}
 .chips::-webkit-scrollbar{display:none}
-.chip{flex:none;white-space:nowrap;border:1px solid var(--line);background:var(--glass-strong);border-radius:999px;padding:4px 11px;font-size:13px;color:var(--muted)}
-.chip[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+/* Filters: one labelled segmented control per question ("Loads in", "Kind"); the chosen option is raised */
+.fseg{flex:none;display:flex;align-items:center;gap:2px;padding:2px;border-radius:10px;background:var(--sunk);border:1px solid var(--line)}
+.flabel{font:500 10.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:0 6px 0 8px}
+.fseg button{position:relative;display:inline-flex;align-items:baseline;gap:6px;white-space:nowrap;border:0;background:none;border-radius:8px;padding:5px 10px;font-size:13px;color:var(--muted);transition:background-color .15s ease,color .15s ease,transform .1s ease-out}
+.fseg button::after{content:"";position:absolute;inset:-6px -1px} /* taller tap target */
+.fseg button .n{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.fseg button[aria-checked="true"]{background:color-mix(in srgb,var(--accent) 16%,var(--surface));color:var(--accent-2);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.18),inset 0 0 0 1px var(--accent-line)}
+.fseg button[aria-checked="true"] .n{color:var(--accent-2);opacity:.75}
+.fseg button .dot{width:7px;height:7px;border-radius:50%;align-self:center;flex:none}
+.fseg button:active{transform:scale(.97)}
+@media (hover:hover) and (pointer:fine){.fseg button:not([aria-checked="true"]):hover{color:var(--fg);background:color-mix(in srgb,var(--fg) 6%,transparent)}}
+.fclear{border:0;background:none;color:var(--accent-2);font:inherit;padding:0 4px;margin:0 -4px;border-radius:6px;white-space:nowrap}
+@media (hover:hover) and (pointer:fine){.fclear:hover{background:var(--accent-soft)}}
 .view{flex:1;overflow-y:auto;min-height:0}
 /* list */
 .group{padding:8px var(--gutter) 4px}
@@ -229,28 +240,31 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 /* The 3D stage is dark in both themes, like a media viewer; its controls follow it. */
 .map.is3d{background:radial-gradient(120% 90% at 50% 45%,#0d0b14 0%,#030305 70%);--glass-strong:rgba(18,16,24,.78);--line:rgba(255,255,255,.1);--line-2:rgba(255,255,255,.16);--fg:#ededf0;--muted:#a1a1aa;--faint:#6e6e78;--sunk:rgba(255,255,255,.07);--surface:#16151c;color:#ededf0}
 /* Map tools: a vertical stack, bottom left, where the editor (which opens on the right) never covers it */
-/* One toolbar, centred along the bottom of the map; it recentres in the space left of the editor */
-.mapdock{position:absolute;left:50%;bottom:16px;z-index:3;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;transition:transform .26s cubic-bezier(.23,1,.32,1)}
-.app:has(#drawer.open) .mapdock{transform:translateX(calc(-50% - var(--dw) / 2))}
-@media (max-width:860px){.app:has(#drawer.open) .mapdock{opacity:0;pointer-events:none}} /* the editor covers most of the map */
-.mapbar{display:flex;align-items:center;padding:3px;border-radius:14px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(0,0,0,.5)}
+/* Map controls on the right, as in Google Maps and Mapbox: the 2D | 3D toggle top right, zoom as a
+   vertical stack bottom right. When the editor opens over the right side they glide left with it. */
+.mapside{position:absolute;top:16px;right:16px;bottom:16px;z-index:3;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end;pointer-events:none;transition:transform .26s cubic-bezier(.23,1,.32,1)}
+.mapside>*{pointer-events:auto}
+.app:has(#drawer.open) .mapside{transform:translateX(calc(-1 * var(--dw)))}
+@media (max-width:860px){.app:has(#drawer.open) .mapside{opacity:0;visibility:hidden}} /* the editor covers most of the map */
+.mapstack{position:relative}
+.mapbar{display:flex;flex-direction:column;align-items:center;padding:3px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(0,0,0,.5)}
 .mapbar>button{position:relative;border:0;background:none;width:34px;height:32px;border-radius:9px;display:grid;place-items:center;color:var(--muted);transition:background-color .12s ease,color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
-.mapbar>button::after,.mapseg button::after{content:"";position:absolute;inset:-6px -3px} /* 44px tall targets */
+.mapbar>button::after,.mapseg button::after{content:"";position:absolute;inset:0 -5px} /* 44px wide targets */
 .mapbar>button:active{transform:scale(.92)}
 .mapbar>button[aria-expanded="true"]{background:var(--sunk);color:var(--fg)}
 .mapbar svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 @media (hover:hover) and (pointer:fine){.mapbar>button:hover{background:var(--sunk);color:var(--fg)}}
-.msep{width:1px;height:16px;background:var(--line-2);margin:0 5px}
+.msep{width:16px;height:1px;background:var(--line-2);margin:3px 0}
 /* 2D | 3D: top left of the map, the corner you read first; the tools sit below it, bottom left */
-/* 2D | 3D, the first thing in the toolbar */
-.mapseg{position:relative;display:grid;grid-template-columns:1fr 1fr;background:var(--sunk);border-radius:10px;padding:2px}
+/* 2D | 3D */
+.mapseg{position:relative;display:grid;grid-template-columns:1fr 1fr;padding:3px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(0,0,0,.5)}
 .mapseg button{position:relative;z-index:1;border:0;background:none;width:40px;height:30px;border-radius:8px;font:600 12px/1 var(--f-mono);letter-spacing:.02em;color:var(--muted);transition:color .16s ease}
 .mapseg button::after{inset:-1px 0}
 .mapseg button[aria-checked="true"]{color:var(--fg)}
 .mapseg button:disabled{opacity:.4;cursor:not-allowed}
 .mapseg .thumb{position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:9px;background:color-mix(in srgb,var(--fg) 13%,transparent);box-shadow:0 1px 2px rgba(0,0,0,.18),inset 0 0 0 1px var(--line);transition:transform .22s cubic-bezier(.23,1,.32,1)}
 .mapseg[data-v="3d"] .thumb{transform:translateX(100%)}
-.mapkey{width:min(300px,calc(100vw - 48px));padding:12px 14px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);font-size:12.5px;color:var(--muted);display:grid;gap:8px;transform-origin:bottom center;opacity:0;transform:scale(.96) translateY(4px);pointer-events:none;visibility:hidden;transition:opacity .14s ease,transform .18s cubic-bezier(.23,1,.32,1),visibility 0s .18s}
+.mapkey{position:absolute;right:calc(100% + 8px);bottom:0;width:min(300px,calc(100vw - 48px));padding:12px 14px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);font-size:12.5px;color:var(--muted);display:grid;gap:8px;transform-origin:bottom right;opacity:0;transform:scale(.96) translateX(4px);pointer-events:none;visibility:hidden;transition:opacity .14s ease,transform .18s cubic-bezier(.23,1,.32,1),visibility 0s .18s}
 .mapkey.open{opacity:1;transform:none;pointer-events:auto;visibility:visible;transition-delay:0s}
 .map:not(.is3d) .mapkey [data-only="3d"],.map.is3d .mapkey [data-only="2d"]{display:none}
 .mapkey .kt{font:500 11px var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
@@ -267,9 +281,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .mtip.on{opacity:1;transform:none}
 .mtip.instant{transition-duration:0ms}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-@media (prefers-reduced-motion:reduce){.mapseg .thumb,.mapkey,.mtip,.mapdock,.mhost.fade{transition:opacity .15s ease!important;animation:none!important;transform:none}}
-@media (prefers-reduced-transparency:reduce){.mapbar,.mapkey{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface)}}
-@media (prefers-contrast:more){.mapbar,.mapkey{background:var(--surface);border-color:var(--fg)}}
+@media (prefers-reduced-motion:reduce){.mapseg .thumb,.mapkey,.mtip,.mapside,.mhost.fade{transition:opacity .15s ease!important;animation:none!important;transform:none}}
+@media (prefers-reduced-transparency:reduce){.mapbar,.mapseg,.mapkey{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface)}}
+@media (prefers-contrast:more){.mapbar,.mapseg,.mapkey{background:var(--surface);border-color:var(--fg)}}
 /* Zoom buttons in the connections dialog */
 .maptools{position:absolute;right:16px;bottom:16px;display:grid;background:var(--glass-strong);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .maptools button{border:0;background:none;width:34px;height:32px;display:grid;place-items:center;color:var(--muted);font-size:17px;line-height:1}
@@ -416,7 +430,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .scopepill span[aria-hidden]{color:var(--muted);margin-left:2px}
 .scopepill:hover span[aria-hidden]{color:var(--fg)}
 .scopepill .dot{width:7px;height:7px}
-.chipsep{width:1px;align-self:stretch;margin:3px 4px;background:var(--line-2)}
 #mscope{flex:none;border:1px solid var(--accent-line);background:var(--accent-soft);color:var(--fg);border-radius:999px;padding:4px 10px;font:inherit;font-size:13px;max-width:160px}
 .top>div:first-child{flex:1 1 0} /* grows into the free space; never narrower than the title (the subtitle gives way) */
 .leavebar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:var(--glass-strong);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid var(--warn);box-shadow:var(--shadow);font-size:13px;z-index:2}

@@ -15,7 +15,7 @@ interface Lk { source: string | N; target: string | N; cross: boolean; ghost?: b
 
 // A shade deeper than the 2D palette: glow lifts these to the intended colour instead of white.
 const DEEP: Record<string, string> = { 1: '#d98c56', 2: '#45bba9', 3: '#d9729c', 4: '#6d95e3', 5: '#9b7fe6', 6: '#9fbd52', 7: '#c6a26c' };
-const SC = 0.62, REL = 2.4, TURN_FOR = 30000, RESUME_AFTER = 5000, PARTICLE_SPEED = 0.0045;
+const SC = 0.62, REL = 2.4, TURN_FOR = 60000, RESUME_AFTER = 5000, PARTICLE_SPEED = 0.0045;
 const val = (n: MNode): number => (n.ghost ? 0.6 : 1 + n.deg * 0.9);
 const radius = (n: MNode): number => Math.cbrt(val(n)) * REL; // the library's own sphere size
 // The library types its callbacks with its own node and link shapes; ours carry more.
@@ -39,7 +39,9 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   let nodes: N[] = [], byId = new Map<string, N>();
   let hover: string | null = null, selected: string | null = null, kb: string | null = null, near: Set<string> | null = null;
   let raf = 0, paused = false, awakeUntil = 0, rotateUntil = 0, engine = false, touched = false, idle = 0, pulseUntil = 0;
-  let px = 0, py = 0, last = performance.now(), dtAvg = 16.7, dtN = 0, firstStop = true;
+  // Ambient motion (the turn and signals on every link) runs for a minute after any input, then rests.
+  let liveUntil = performance.now() + TURN_FOR, ambient = true, settle = 0;
+  let px = 0, py = 0, last = performance.now(), dtAvg = 16.7, dtN = 0;
   const rand = seeded(0.17);
   const colors = new Map<string, string>();
   const col = (p: string): string => colors.get(p) ?? colors.set(p, (() => { const v = S?.color(p) ?? ''; const m = v.match(/--c(\d)/); return m ? DEEP[m[1]] : cssVar(v) || '#66666f'; })()).get(p)!;
@@ -62,10 +64,10 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     .linkOpacity(0.3)
     .linkWidth(LA((l) => (touchesFocus(l) ? 0.5 : 0)))
     // Signals only on the focused memory's links, for a few seconds.
-    .linkDirectionalParticles(LA((l) => (hooks.reduce() || l.twin || l.ghost || performance.now() > pulseUntil || !touchesFocus(l) ? 0 : 3)))
+    .linkDirectionalParticles(LA((l) => (hooks.reduce() || l.twin || l.ghost ? 0 : touchesFocus(l) ? 3 : !ambient ? 0 : l.cross ? 2 : 1)))
     .linkDirectionalParticleWidth(1.2).linkDirectionalParticleSpeed(PARTICLE_SPEED).linkDirectionalParticleColor(() => '#ffffff')
-    .warmupTicks(160).cooldownTicks(80).cooldownTime(3000)
-    .onEngineStop(() => { engine = false; if (firstStop) { firstStop = false; if (!touched) home(hooks.reduce() ? 0 : 700); } })
+    .cooldownTime(15000) // the map lifts and settles on screen, as in the mockup
+    .onEngineStop(() => { engine = false; })
     .onNodeHover((o: NodeObject | null) => {
       const d = o as N | null;
       hover = d?.id ?? null; el.style.cursor = d ? 'pointer' : '';
@@ -89,9 +91,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   // Glow at half resolution; the renderer at most 2× the screen's pixels.
   const renderer = g.renderer();
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-  const bloom = new UnrealBloomPass(new Vector2(host.clientWidth / 2, host.clientHeight / 2), 1.0, 0.4, 0.12);
-  const setSize = bloom.setSize.bind(bloom);
-  bloom.setSize = (w: number, h: number) => setSize(Math.max(1, w / 2), Math.max(1, h / 2));
+  const bloom = new UnrealBloomPass(new Vector2(host.clientWidth, host.clientHeight), 1.0, 0.4, 0.12);
   g.postProcessingComposer().addPass(bloom);
 
   const ctl = g.controls() as unknown as { autoRotate: boolean; autoRotateSpeed: number; enableDamping: boolean; target: Vector3; addEventListener: (t: string, f: () => void) => void };
@@ -99,14 +99,15 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   const spin = (): void => {
     if (!hooks.reduce() && !hover && !selected && !kb && performance.now() < rotateUntil) { ctl.autoRotate = true; wake(); }
   };
-  ctl.addEventListener('start', () => { touched = true; ctl.autoRotate = false; clearTimeout(idle); rotateUntil = performance.now() + TURN_FOR; wake(); });
+  ctl.addEventListener('start', () => { touched = true; live(); ctl.autoRotate = false; clearTimeout(idle); rotateUntil = performance.now() + TURN_FOR; wake(); });
   ctl.addEventListener('change', () => wake(300));
   ctl.addEventListener('end', () => { clearTimeout(idle); idle = window.setTimeout(spin, RESUME_AFTER); });
 
   // Input keeps it awake; the library's hover test runs in its render loop.
-  el.addEventListener('pointermove', (e) => { const r = host.getBoundingClientRect(); px = e.clientX - r.left; py = e.clientY - r.top; wake(600); });
+  el.addEventListener('pointermove', (e) => { const r = host.getBoundingClientRect(); px = e.clientX - r.left; py = e.clientY - r.top; live(); wake(600); });
   el.addEventListener('pointerleave', () => { hooks.hover(null); });
-  el.addEventListener('wheel', () => wake(600), { passive: true });
+  el.addEventListener('wheel', () => { live(); wake(600); }, { passive: true });
+  function live(): void { liveUntil = performance.now() + TURN_FOR; }
 
   // ---------- Sleep and wake ----------
   function wake(ms = 1200): void {
@@ -123,8 +124,10 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     dtAvg += (dt - dtAvg) * 0.05;
     if (++dtN % 60 === 0) g.linkDirectionalParticleSpeed(PARTICLE_SPEED * dtAvg / 16.67);
     if (ctl.autoRotate && now > rotateUntil) ctl.autoRotate = false;
+    const amb = !hooks.reduce() && now < liveUntil;
+    if (amb !== ambient) { ambient = amb; g.linkDirectionalParticles(g.linkDirectionalParticles()); }
     const fading = names(dt);
-    if (on && (ctl.autoRotate || engine || fading || now < awakeUntil || now < pulseUntil)) raf = requestAnimationFrame(tick);
+    if (on && (ctl.autoRotate || engine || fading || ambient || now < awakeUntil || now < pulseUntil)) raf = requestAnimationFrame(tick);
     else if (on) { paused = true; g.pauseAnimation(); }
   }
 
@@ -148,7 +151,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     const z = Math.max(hy / tf, hx / (tf * aspect)) * 1.08;
     ctl.autoRotate = false; clearTimeout(idle);
     g.cameraPosition({ x: cx, y: cy, z }, { x: cx, y: cy, z: 0 }, ms);
-    rotateUntil = performance.now() + ms + TURN_FOR;
+    rotateUntil = performance.now() + ms + TURN_FOR; live();
     idle = window.setTimeout(spin, ms + 50);
     wake(ms + 300);
   }
@@ -298,6 +301,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
         const hx = (Math.max(...xs) - Math.min(...xs)) / 2 + 40, hy = (Math.max(...ys) - Math.min(...ys)) / 2 + 60;
         g.cameraPosition({ x: 0, y: 0, z: Math.max(hy / tf, hx / (tf * aspect)) * 1.15 }, { x: 0, y: 0, z: 0 });
         rotateUntil = performance.now() + TURN_FOR;
+        settle = window.setTimeout(() => { if (!touched) home(hooks.reduce() ? 0 : 900); }, 1200);
       }
       g.graphData({ nodes, links });
     } else {
@@ -332,6 +336,6 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       if (v2) wake(600);
       else { cancelAnimationFrame(raf); raf = 0; paused = true; g.pauseAnimation(); }
     },
-    destroy() { on = false; cancelAnimationFrame(raf); clearTimeout(idle); ro.disconnect(); g._destructor(); el.remove(); lc.remove(); },
+    destroy() { on = false; cancelAnimationFrame(raf); clearTimeout(idle); clearTimeout(settle); ro.disconnect(); g._destructor(); el.remove(); lc.remove(); },
   };
 }
