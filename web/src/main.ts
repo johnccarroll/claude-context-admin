@@ -753,7 +753,7 @@ async function renderWhat(): Promise<void> {
 
 function rowsHTML(rows: Row[], opts: { tokens?: boolean } = {}): string {
   return rows.map((r) => `<div class="trow" data-k="${esc(r.key)}" tabindex="0" role="button" aria-label="${esc(r.name)}: open details"><div style="min-width:0"><div class="nm">${esc(r.name)}<small>${esc(r.source)}</small>${r.warn.map((w) => `<span class="tag warn">${esc(w)}</span>`).join('')}</div>${r.desc ? `<div class="ds">${esc(r.desc)}</div>` : ''}${r.tags.length ? `<div class="comps">${r.tags.filter(Boolean).map((t) => `<span class="tag${t.includes('••') ? ' mono' : ''}">${esc(t)}</span>`).join('')}</div>` : ''}</div>
-    ${opts.tokens && r.tokens !== undefined ? `<div class="stat2 hide-sm"><b>~${fmtN(r.tokens)} tokens</b>${esc(r.tokensLabel ?? '')}</div>` : '<span></span>'}${usageCell(r.uses, r.last, !!opts.tokens)}${r.canToggle ? toggle(r.enabled, r.key) : ''}</div>`).join('');
+    ${opts.tokens && r.tokens !== undefined ? (r.tokens > 0 ? `<div class="stat2 hide-sm"><b>~${fmtN(r.tokens)} tokens</b>${esc(r.tokensLabel ?? '')}</div>` : '<div class="stat2 hide-sm"><b>No startup cost</b>nothing loads up front</div>') : '<span></span>'}${usageCell(r.uses, r.last, !!opts.tokens)}${r.canToggle ? toggle(r.enabled, r.key) : ''}</div>`).join('');
 }
 
 function wireRows(root: HTMLElement, rows: Row[], onToggle?: (r: Row, on: boolean) => Promise<boolean>): void {
@@ -1461,7 +1461,9 @@ function openNewMemory(): void {
   d.classList.add('open');
   watchEdits(d);
   $('#dx').onclick = () => leave(closeDrawer);
-  ($('#n-title') as HTMLInputElement).focus();
+  // Focusing while the editor is still off-screen makes the browser scroll the app to reveal it, so
+  // the editor overshoots and snaps back. preventScroll keeps the slide clean.
+  ($('#n-title') as HTMLInputElement).focus({ preventScroll: true });
   $('#n-title').addEventListener('input', () => { $('#n-err').hidden = true; $('#n-title').removeAttribute('aria-invalid'); });
   linkPicker($<HTMLTextAreaElement>('#n-body'), () => memoryDirFor($<HTMLSelectElement>('#n-proj').value));
   $('#ncreate').onclick = () => {

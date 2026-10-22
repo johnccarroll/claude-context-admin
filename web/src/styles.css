@@ -39,10 +39,10 @@
 [hidden]{display:none!important}
 .tk>*,.tgroup>*,.trow>div{min-width:0}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--f-ui);padding:clamp(0px,3vh,24px) clamp(0px,2vw,16px);height:100%;overflow:hidden;position:relative;-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--f-ui);padding:clamp(0px,3vh,24px) clamp(0px,2vw,16px);height:100%;overflow:clip;position:relative;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.app{max-width:1280px;margin:0 auto;height:100%;min-height:0;display:grid;grid-template-columns:276px minmax(0,1fr);background:var(--glass);-webkit-backdrop-filter:blur(28px) saturate(170%);backdrop-filter:blur(28px) saturate(170%);border:1px solid var(--rim);border-radius:22px;overflow:hidden;box-shadow:var(--shadow),inset 0 1px 0 var(--rim);position:relative;overflow:hidden}
+.app{max-width:1280px;margin:0 auto;height:100%;min-height:0;display:grid;grid-template-columns:276px minmax(0,1fr);background:var(--glass);-webkit-backdrop-filter:blur(28px) saturate(170%);backdrop-filter:blur(28px) saturate(170%);border:1px solid var(--rim);border-radius:22px;box-shadow:var(--shadow),inset 0 1px 0 var(--rim);position:relative;overflow:clip} /* clip, not hidden: a hidden box can still be scrolled, and an off-screen editor made the browser scroll it sideways */
 /* sidebar */
 .side{background:var(--glass-2);border-right:1px solid var(--line);padding:0 12px;display:flex;flex-direction:column;overflow:hidden}
 .brand{display:flex;align-items:center;gap:10px;height:var(--head);margin:0 -12px 8px;padding:0 20px;border-bottom:1px solid var(--line);flex:none}
@@ -114,10 +114,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .chips::-webkit-scrollbar{display:none}
 /* Filters: one labelled segmented control per question ("Loads in", "Kind"); the chosen option is raised */
 .fseg{flex:none;display:flex;align-items:center;gap:2px;padding:2px;border-radius:10px;background:var(--sunk);border:1px solid var(--line)}
-.flabel{font:500 10.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:0 6px 0 8px}
+@media (max-width:640px){.chips{flex-direction:column;align-items:stretch;gap:6px;mask-image:none;padding-right:var(--gutter)}.fseg{overflow-x:auto;scrollbar-width:none}.fseg::-webkit-scrollbar{display:none}}
+.flabel{font:500 10.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 6px 0 8px}
 .fseg button{position:relative;display:inline-flex;align-items:baseline;gap:6px;white-space:nowrap;border:0;background:none;border-radius:8px;padding:5px 10px;font-size:13px;color:var(--muted);transition:background-color .15s ease,color .15s ease,transform .1s ease-out}
 .fseg button::after{content:"";position:absolute;inset:-6px -1px} /* taller tap target */
-.fseg button .n{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.fseg button .n{font-size:12px;color:var(--muted);opacity:.8;font-variant-numeric:tabular-nums} /* --faint is under 4.5:1 */
 .fseg button[aria-checked="true"]{background:color-mix(in srgb,var(--accent) 16%,var(--surface));color:var(--accent-2);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.18),inset 0 0 0 1px var(--accent-line)}
 .fseg button[aria-checked="true"] .n{color:var(--accent-2);opacity:.75}
 .fseg button .dot{width:7px;height:7px;border-radius:50%;align-self:center;flex:none}
@@ -141,7 +142,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .links-n{display:inline-flex;align-items:center;gap:4px}
 .empty{padding:60px var(--gutter);text-align:center;color:var(--muted);max-width:560px;margin:0 auto}
 /* drawer */
-.drawer{position:absolute;top:0;right:0;bottom:0;width:min(var(--dw),100%);border-radius:0;border:0;background:var(--surface);overflow:hidden;border-left:1px solid var(--line);box-shadow:-20px 0 40px -30px rgba(0,0,0,.35);display:flex;flex-direction:column;transform:translateX(110%);transition:transform .22s ease;z-index:5}
+.drawer{position:absolute;top:0;right:0;bottom:0;left:auto;grid-column:1 / -1;grid-row:1 / -1;justify-self:end;width:min(var(--dw),100%);border-radius:0;border:0;background:var(--surface);overflow:hidden;border-left:1px solid var(--line);box-shadow:-20px 0 40px -30px rgba(0,0,0,.35);display:flex;flex-direction:column;transform:translateX(calc(100% + 40px));transition:transform .26s cubic-bezier(.32,.72,0,1);will-change:transform;z-index:5} /* iOS sheet curve; off by its own width plus its shadow */
 .drawer.open{transform:none}
 .dhead{display:flex;align-items:center;gap:8px;padding:0 18px;height:var(--head);flex:none;border-bottom:1px solid var(--line)}
 .dhead .where{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px;min-width:0}
@@ -583,7 +584,8 @@ body.resizing{cursor:col-resize;user-select:none}
 /* Wide windows: the open editor docks beside the page instead of covering it, so search, filters and
    the list stay usable. The map keeps the overlay (it pans the open memory clear on its own). */
 @media (min-width:1100px){
-  .main{transition:margin-right .22s ease}
+  /* Resized once, never animated: animating a margin re-lays out the whole list every frame (Safari
+     stalls for ~90 ms). Only the editor's transform animates; the page settles in behind it. */
   .app:has(#drawer.open) .main:not(:has(#v-map:not([hidden]))){margin-right:min(var(--dw),100%)}
 }
 /* Duplicate memories, side by side: lines only one side has are marked */
