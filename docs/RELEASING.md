@@ -55,7 +55,7 @@ repositories; the macOS jobs never run from a private copy.
      nothing else (`scripts/repo-setup.sh` shows the three commands).
 
    Delete the exported `.p12` afterwards (`rm -P`).
-5. **Screenshots** when the UI changes: `scripts/build-mac-app.sh 0.0.0-dev && scripts/screenshots.sh`
+5. **Clips** when the UI changes: `scripts/build-mac-app.sh 0.0.0-dev && scripts/tour.sh`
    (made-up data only, never a real home).
 
 Releases are `X.Y.Z` only; there are no prereleases. Once a release is out, the GitHub release

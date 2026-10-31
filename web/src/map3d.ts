@@ -13,7 +13,8 @@ import { cssVar } from './ui';
 interface N { id: string; n: MNode; x?: number; y?: number; z?: number; vx?: number; vy?: number; vz?: number }
 interface Lk { source: string | N; target: string | N; cross: boolean; ghost?: boolean; twin?: boolean }
 
-// A shade deeper than the 2D palette: glow lifts these to the intended colour instead of white.
+// On dark, a shade deeper than the 2D palette: glow lifts these to the intended colour instead of
+// white. On light there is no glow, and the 2D colours are used as they are.
 const DEEP: Record<string, string> = { 1: '#d98c56', 2: '#45bba9', 3: '#d9729c', 4: '#6d95e3', 5: '#9b7fe6', 6: '#9fbd52', 7: '#c6a26c' };
 const SC = 0.62, REL = 2.4, TURN_FOR = 60000, RESUME_AFTER = 5000, PARTICLE_SPEED = 0.0045;
 const val = (n: MNode): number => (n.ghost ? 0.6 : 1 + n.deg * 0.9);
@@ -44,7 +45,9 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   let px = 0, py = 0, last = performance.now(), dtAvg = 16.7, dtN = 0;
   const rand = seeded(0.17);
   const colors = new Map<string, string>();
-  const col = (p: string): string => colors.get(p) ?? colors.set(p, (() => { const v = S?.color(p) ?? ''; const m = v.match(/--c(\d)/); return m ? DEEP[m[1]] : cssVar(v) || '#66666f'; })()).get(p)!;
+  const col = (p: string): string => colors.get(p) ?? colors.set(p, (() => { const v = S?.color(p) ?? ''; const m = v.match(/--c(\d)/); return m && T.dark ? DEEP[m[1]] : cssVar(v) || '#66666f'; })()).get(p)!;
+  // Colours that depend on the ground: dimmed memories, the focused and twin links, and the signals.
+  const ink = (): { dim: string; focus: string; twin: string } => (T.dark ? { dim: '#26262e', focus: '#ffffff', twin: '#d8d8e2' } : { dim: '#d9d7e0', focus: '#1a1826', twin: '#8a86a0' });
   let W = Math.max(1, host.clientWidth), H = Math.max(1, host.clientHeight); // updated on resize, never read per frame
   const focus = (): string | null => hover ?? kb ?? selected;
   const touchesFocus = (l: Lk): boolean => { const f = focus(); if (!f) return false; const [s, t] = ends(l); return s === f || t === f; };
@@ -59,14 +62,14 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     .nodeVisibility(NA((d) => !!S?.shown.has(d.id)))
     .linkVisibility(LA((l) => { const [s, t] = ends(l); return !!S?.shown.has(s) && !!S?.shown.has(t); }))
     .nodeVal(NA((d) => val(d.n))).nodeRelSize(REL).nodeResolution(16).nodeOpacity(0.92)
-    .nodeColor(NA((d) => ((near && !near.has(d.id)) ? '#26262e' : col(d.n.project))))
-    .linkColor(LA((l) => (touchesFocus(l) ? '#ffffff' : l.twin ? '#d8d8e2' : l.cross ? '#8a78d8' : col(byId.get(ends(l)[0])?.n.project ?? ''))))
-    .linkOpacity(0.3)
+    .nodeColor(NA((d) => ((near && !near.has(d.id)) ? ink().dim : col(d.n.project))))
+    .linkColor(LA((l) => (touchesFocus(l) ? ink().focus : l.twin ? ink().twin : l.cross ? '#8a78d8' : col(byId.get(ends(l)[0])?.n.project ?? ''))))
+    .linkOpacity(T.dark ? 0.3 : 0.5)
     .linkWidth(LA((l) => (touchesFocus(l) ? 0.5 : 0)))
     // Signals only on the focused memory's links, for a few seconds.
     // At rest every link carries a signal, as in the mockup; past ~250 links only those between projects do.
     .linkDirectionalParticles(LA((l) => (hooks.reduce() || l.twin || l.ghost ? 0 : touchesFocus(l) ? 3 : !ambient ? 0 : l.cross ? (busy ? 1 : 2) : busy ? 0 : 1)))
-    .linkDirectionalParticleWidth(1.2).linkDirectionalParticleSpeed(PARTICLE_SPEED).linkDirectionalParticleColor(() => '#ffffff')
+    .linkDirectionalParticleWidth(1.2).linkDirectionalParticleSpeed(PARTICLE_SPEED).linkDirectionalParticleColor(() => ink().focus)
     .cooldownTime(15000).cooldownTicks(300) // the map lifts and settles on screen, as in the mockup, in a bounded number of steps
     .onEngineStop(() => { engine = false; })
     .onNodeHover((o: NodeObject | null) => {
@@ -93,6 +96,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   const renderer = g.renderer();
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
   const bloom = new UnrealBloomPass(new Vector2(host.clientWidth, host.clientHeight), 1.0, 0.4, 0.12);
+  bloom.enabled = T.dark; // glow reads on a dark ground only
   g.postProcessingComposer().addPass(bloom);
 
   const ctl = g.controls() as unknown as { autoRotate: boolean; autoRotateSpeed: number; enableDamping: boolean; target: Vector3; addEventListener: (t: string, f: () => void) => void };
@@ -218,7 +222,8 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     if (lc.width !== Math.round(W * dpr) || lc.height !== Math.round(H * dpr)) { lc.width = Math.round(W * dpr); lc.height = Math.round(H * dpr); lc.style.width = W + 'px'; lc.style.height = H + 'px'; }
     lx.setTransform(dpr, 0, 0, dpr, 0, 0); lx.clearRect(0, 0, W, H);
     if (!S) return false;
-    const e = hooks.reduce() ? 1 : 1 - Math.exp(-dt / 140), f = focus(), cam = g.camera() as unknown as { position: Vector3 };
+    // Names leave faster than they arrive, so two never sit on each other for long.
+    const e = hooks.reduce() ? 1 : 1 - Math.exp(-dt / 140), eOut = hooks.reduce() ? 1 : 1 - Math.exp(-dt / 50), f = focus(), cam = g.camera() as unknown as { position: Vector3 };
     const scr = projected();
     let fading = false;
     // Project capsules first, nearest first; one that would sit on another fades until they part.
@@ -265,7 +270,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
     for (const s of scr) {
       const id = s.d.id, cur = la.get(id) ?? 0, target = placed.has(id) ? 1 : 0;
       if (placed.has(id)) side.set(id, placed.get(id)!);
-      const a = Math.abs(cur - target) < 0.02 ? target : cur + (target - cur) * e;
+      const a = Math.abs(cur - target) < 0.02 ? target : cur + (target - cur) * (target ? e : eOut);
       if (a !== target) fading = true;
       la.set(id, a);
       const sd = side.get(id);
@@ -273,11 +278,11 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
       const big = id === f;
       lx.font = fontOf(big); lx.textAlign = sd > 0 ? 'left' : 'right';
       const x = s.x + sd * (s.px + 6), alpha = a * (big ? 1 : 0.5 + 0.5 * depth(s));
-      lx.lineWidth = 5; lx.lineJoin = 'round'; lx.strokeStyle = `rgba(3,3,6,${0.88 * alpha})`; lx.strokeText(s.d.n.name, x, s.y);
-      lx.fillStyle = `rgba(242,242,245,${alpha})`; lx.fillText(s.d.n.name, x, s.y);
+      lx.lineWidth = 5; lx.lineJoin = 'round'; lx.strokeStyle = T.dark ? `rgba(3,3,6,${0.88 * alpha})` : `rgba(255,255,255,${0.9 * alpha})`; lx.strokeText(s.d.n.name, x, s.y);
+      lx.fillStyle = T.dark ? `rgba(242,242,245,${alpha})` : `rgba(26,24,38,${alpha})`; lx.fillText(s.d.n.name, x, s.y);
     }
     lx.letterSpacing = '0px';
-    for (const c of caps) if (c.a > 0.03) drawChip(lx, T, S.label(c.p), S.count(c.p), c.x, c.y, col(c.p), c.a * (f ? 0.5 : S.gone(c.p) ? 0.6 : 1), true);
+    for (const c of caps) if (c.a > 0.03) drawChip(lx, T, S.label(c.p), S.count(c.p), c.x, c.y, col(c.p), c.a * (f ? 0.5 : S.gone(c.p) ? 0.6 : 1), T.dark);
     lx.textAlign = 'start';
     return fading;
   }
@@ -321,7 +326,7 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
 
   const ro = new ResizeObserver(() => { W = Math.max(1, host.clientWidth); H = Math.max(1, host.clientHeight); g.width(W).height(H); wake(300); });
   ro.observe(host);
-  const T0 = (): void => { T = tokens(); wake(300); };
+  const T0 = (): void => { T = tokens(); colors.clear(); bloom.enabled = T.dark; g.linkOpacity(T.dark ? 0.3 : 0.5); refresh(); wake(300); };
 
   return {
     update, theme: T0,

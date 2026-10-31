@@ -271,8 +271,11 @@ final class App: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigation
 
   private func buildStatusItem() {
     status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    let image = NSImage(systemSymbolName: "brain", accessibilityDescription: "Claude Context Admin")
+    // The app's mark (macos/menubar.svg), with its @2x and @3x, as a template so macOS tints it.
+    let image = NSImage(named: "menubar")
     image?.isTemplate = true
+    image?.size = NSSize(width: 18, height: 18)
+    image?.accessibilityDescription = "Claude Context Admin"
     status.button?.image = image
     let m = NSMenu()
     m.delegate = self

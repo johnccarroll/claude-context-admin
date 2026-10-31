@@ -1,4 +1,4 @@
 ---
-name: obsidian
+name: vault-notes
 description: vault search
 ---

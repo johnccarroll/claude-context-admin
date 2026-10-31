@@ -40,9 +40,11 @@ is one tap away.
 
 Open a memory in the built-in Markdown editor and fix it yourself instead of asking Claude to
 relearn it: the title, its kind, the one-line summary Claude reads every session, and the details.
-Type `[[` to link another memory; links read as their names, and a broken one is flagged with a
-one-click fix. Rename a memory and the links to it and MEMORY.md update too. Every version is kept,
-with a diff and one-click restore.
+Headings, bold, lists and code read as formatted while you type, and the Markdown marks show
+only on the line you're on (or always, with the Source view). Type `[[` or press Link to link
+another memory; links read as their names, click one to change, remove or open it, and a broken
+one is flagged with a one-click fix. Rename a memory and the links to it and MEMORY.md update too. Every version
+is kept, with a diff and one-click restore.
 
 ![Typing [[ in a memory lists the memories it can link to; the picked one reads as its name](https://raw.githubusercontent.com/johnccarroll/claude-context-admin/main/docs/clips/editor.webp)
 

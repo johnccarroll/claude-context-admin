@@ -170,7 +170,7 @@ func TestToolkit(t *testing.T) {
 	if c := find(inv, entry.Command, "ops:apply"); c == nil {
 		t.Fatal("nested command name")
 	}
-	if a := find(inv, entry.Agent, "obsidian"); a == nil || a.Scope != entry.ScopeUser {
+	if a := find(inv, entry.Agent, "vault-notes"); a == nil || a.Scope != entry.ScopeUser {
 		t.Fatalf("agent: %+v", a)
 	}
 }

@@ -67,10 +67,12 @@
   // Each hop goes somewhere new: the first link in the editor to a memory not yet visited.
   const seen = new Set();
   const hop = async () => {
-    const id = [...document.querySelectorAll('#drawer .rich [data-id]')].map((e) => e.dataset.id).find((i) => !seen.has(i));
+    const id = [...document.querySelectorAll('#drawer .lchip[data-id]')].map((e) => e.dataset.id).find((i) => i && !seen.has(i));
     if (!id) return false;
     seen.add(id);
-    return clickEl(`#drawer .rich [data-id="${CSS.escape(id)}"]`, 750);
+    if (!(await clickEl(`#drawer .lchip[data-id="${CSS.escape(id)}"]`, 750))) return false; // its menu opens
+    await sleep(500);
+    return clickEl('.menu [role="menuitem"]:last-child', 600); // Open
   };
 
   const SCENES = {
@@ -97,7 +99,7 @@
       await sleep(500);
       await press(() => T()?.open('feedback_deploy_checklist'));
       await sleep(1700);
-      for (const e of document.querySelectorAll('#drawer .rich [data-id]')) if (e.dataset.id.endsWith('/feedback_deploy_checklist.md')) seen.add(e.dataset.id);
+      for (const e of document.querySelectorAll('#drawer .lchip[data-id]')) if (e.dataset.id.endsWith('/feedback_deploy_checklist.md')) seen.add(e.dataset.id);
       if (await hop()) await sleep(1600);
       if (await hop()) await sleep(1600);
       await clickEl('#mreset', 800);
@@ -115,23 +117,20 @@
       await sleep(600);
       await clickEl('#v-all .row[data-id$="/feedback_deploy_checklist.md"]', 800);
       await sleep(1300);
-      await clickEl('#drawer [data-m="edit"]', 700);
-      await sleep(400);
-      const ta = el('#f-body');
-      if (ta) {
-        ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
-        for (const ch of ' Also [[') {
-          ta.setRangeText(ch, ta.selectionStart, ta.selectionEnd, 'end');
-          ta.dispatchEvent(new InputEvent('input', { bubbles: true, data: ch, inputType: 'insertText' }));
-          await sleep(110);
-        }
+      const ed = await waitFor('#f-body .cm-content');
+      if (ed) {
+        await clickEl('#f-body .cm-content', 600); // the live view is the editor: no mode to switch
+        ed.focus();
+        document.getSelection()?.selectAllChildren(ed); document.getSelection()?.collapseToEnd();
+        for (const ch of ' Also [[') { document.execCommand('insertText', false, ch); await sleep(110); }
+        await sleep(1400);
+        ed.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
         await sleep(900);
-        await sleep(500);
-        ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        await sleep(900);
+        await clickEl('#f-body [data-t="source"]', 700); // the same text, as written
+        await sleep(1200);
+        await clickEl('#f-body [data-t="preview"]', 700);
       }
-      await clickEl('#drawer [data-m="read"]', 700);
-      await sleep(1700);
+      await sleep(1500);
       // Back to the start: close without saving (the demo stays as it was).
       await clickEl('#dx', 700);
       await sleep(300);

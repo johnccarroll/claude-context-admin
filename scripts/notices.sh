@@ -13,6 +13,8 @@ echo "Claude Context Admin includes the third-party software below, each under i
 section() { printf '\n%s\n%s\n' "================================================================" "$1"; }
 section "Go (golang.org)"
 cat "$(go env GOROOT)/LICENSE"
+section "Lucide (lucide.dev): the app icon, menu bar icon and sidebar mark"
+cat "$ROOT/macos/LICENSE-lucide.txt"
 go version -m "$bin" | awk '$1 == "dep" { print $2 "@" $3 }' | while read -r m; do
   section "${m%@*} ${m#*@}"
   for f in "$modcache/$m"/LICENSE* "$modcache/$m"/NOTICE*; do if [ -f "$f" ]; then cat "$f"; fi; done
