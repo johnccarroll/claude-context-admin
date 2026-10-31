@@ -219,6 +219,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .map:focus-within .mhost:has(:focus-visible){box-shadow:inset 0 0 0 2px var(--accent)}
 /* The 3D stage is dark in both themes, like a media viewer; its controls follow it. */
 .map.is3d{background:radial-gradient(120% 90% at 50% 45%,#0d0b14 0%,#030305 70%);--glass-strong:rgba(18,16,24,.78);--line:rgba(255,255,255,.1);--line-2:rgba(255,255,255,.16);--fg:#ededf0;--muted:#a1a1aa;--faint:#6e6e78;--sunk:rgba(255,255,255,.07);--surface:#16151c;color:#ededf0}
+/* On light, the 3D map is a pale ground with the app's own tokens: no glow, dark names. */
+:root[data-theme="light"] .map.is3d{background:radial-gradient(120% 90% at 50% 45%,#ffffff 0%,#e8e6ef 70%);--glass-strong:inherit;--line:inherit;--line-2:inherit;--fg:inherit;--muted:inherit;--faint:inherit;--sunk:inherit;--surface:inherit;color:inherit}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .map.is3d{background:radial-gradient(120% 90% at 50% 45%,#ffffff 0%,#e8e6ef 70%);--glass-strong:inherit;--line:inherit;--line-2:inherit;--fg:inherit;--muted:inherit;--faint:inherit;--sunk:inherit;--surface:inherit;color:inherit}}
 /* Map tools: a vertical stack, bottom left, where the editor (which opens on the right) never covers it */
 /* Map controls on the right, as in Google Maps and Mapbox: the 2D | 3D toggle top right, zoom as a
    vertical stack bottom right. When the editor opens over the right side they glide left with it. */
@@ -497,7 +500,7 @@ textarea.mono{font:12.5px/1.6 var(--f-mono)}
 .dgrip:focus-visible{outline:none}
 body.resizing{cursor:col-resize;user-select:none}
 @media (max-width:820px){.drawer.open+.dgrip{display:none}}
-@media (max-width:820px){.main:has(.drawer.open) .toast{bottom:76px;left:50%}}
+@media (max-width:820px){.app:has(.drawer.open) .toast{bottom:76px;left:50%}} /* above the panel's footer */
 .notice .btn.sm{flex:none;align-self:center}
 .rv,.tk,.ins{max-width:1180px} /* left-aligned: rows stay readable on very wide windows */
 .empty .etitle{display:block;font-size:16px;color:var(--fg);margin-bottom:6px}

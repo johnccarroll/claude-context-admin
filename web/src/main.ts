@@ -6,7 +6,9 @@ import 'd3-transition'; // .transition() on the expanded graph's zoom
 import { zoom as d3zoom } from 'd3-zoom';
 import { diffLines, hunks } from './diff';
 import { composeTool, splitDoc, splitTool, type ToolDoc } from './doc';
-import { mountEditor, renderMarkdown, type Editor, type Links, type LinkTarget } from './editor';
+import type { Editor, Links, LinkTarget } from './editor';
+// The editor is its own chunk, fetched as the app starts and ready by the first time a panel opens.
+const editor = import('./editor');
 import { openPalette } from './palette';
 import { drawMap, markMap } from './map';
 import { openAdd } from './add';
@@ -545,7 +547,7 @@ function renderReview(): void {
   };
   document.getElementById('showdis')?.addEventListener('click', () => { ui.showDismissed = !ui.showDismissed; render(); });
   fillCompares();
-  for (const el of $$<HTMLElement>('#v-review [data-body]')) { const r = review.find((x) => x.id === el.dataset.body); if (r?.previewBody) renderMarkdown(el, r.previewBody.text, linksFor(() => r.previewBody!.dir)); }
+  void editor.then(({ renderMarkdown }) => { for (const el of $$<HTMLElement>('#v-review [data-body]')) { const r = review.find((x) => x.id === el.dataset.body); if (r?.previewBody && el.isConnected) renderMarkdown(el, r.previewBody.text, linksFor(() => r.previewBody!.dir)); } });
   $$('#v-review [data-open]').forEach((b) => (b.onclick = () => { const m = model.byId.get(b.dataset.open ?? ''); if (m) openMemory(m); }));
   $$('#v-review .pill[data-id]').forEach((p) => (p.onclick = () => { const m = model.byId.get(p.dataset.id ?? ''); if (m) openMemory(m); }));
   $$('#v-review .card').forEach((c) => {
@@ -1072,7 +1074,8 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
   let ed: Editor | null = null; // mounted once the text arrives
   $<HTMLInputElement>('#f-title').addEventListener('input', (e) => { $('#f-rename').hidden = (e.target as HTMLInputElement).value.trim() === m.title; });
   // Save stays off until the text arrives, so it can never write a placeholder or blank the file.
-  void loadFile(m.path).then((f) => {
+  void loadFile(m.path).then(async (f) => {
+    const { mountEditor } = await editor;
     if (ui.open?.id !== m.id) return;
     $('#f-body').replaceChildren();
     // the server splits the header, exactly as saving puts it back
@@ -1181,7 +1184,8 @@ function openFile(e: Entry, tab: 'edit' | 'history' = 'edit', at = ''): void {
   wireTabs(d, () => void showHistory(path, () => ui.file === path, at));
   let ed: Editor | null = null, seen = e.modified ?? '';
   const save = document.getElementById('isave') as HTMLButtonElement | null;
-  void loadFile(path).then((f) => {
+  void loadFile(path).then(async (f) => {
+    const { mountEditor } = await editor;
     if (ui.file !== path) return;
     $('#i-body').replaceChildren();
     ed = mountEditor($('#i-body'), { value: f.content, readOnly: plugin });
@@ -1231,7 +1235,7 @@ async function showHistory(path: string, still: () => boolean, at = ''): Promise
       <div class="field"><label>${older ? 'What changed in this version' : 'The first copy this app saved'}</label>${head}${older
         ? `<div class="diff2">${lines.length ? lines.map((l) => `<div class="${l.op === '-' ? 'r' : l.op === '+' ? 'a' : 'c'}">${esc(l.op + ' ' + l.text)}</div>`).join('') : `<div class="c">${head ? 'The text didn’t change.' : 'No changes.'}</div>`}</div>`
         : `${cur.fields.map(([k, x]) => `<div class="hchg"><b>${k}</b><span>${esc(x)}</span></div>`).join('')}<div class="mdhost" id="h-first"></div>`}</div>`;
-    if (!older) renderMarkdown($('#h-first', box), cur.body.slice(0, 4000), linksFor(() => dirOf(path)));
+    if (!older) void editor.then(({ renderMarkdown }) => { const h = document.getElementById('h-first'); if (h) renderMarkdown(h, cur.body.slice(0, 4000), linksFor(() => dirOf(path))); });
     $$('.ver', box).forEach((x) => (x.onclick = () => { sel = Number(x.dataset.i); draw(); }));
     const restore = $<HTMLButtonElement>('#drestore');
     restore.disabled = sel === 0;
@@ -1314,7 +1318,9 @@ function openTool(r: Row): void {
   let doc: ToolDoc | null = null, file: Editor | null = null, ins: Editor | null = null;
   const desc = document.getElementById('t-desc') as HTMLInputElement | null, insHost = document.getElementById('t-ins');
   const content = (): string => (!raw || !doc ? '' : !raw.hidden ? file?.value ?? '' : composeTool(doc, desc?.value ?? '', ins?.value ?? ''));
-  if (raw && desc && insHost && e?.path) void loadFile(e.path).then((f) => {
+  if (raw && desc && insHost && e?.path) void loadFile(e.path).then(async (f) => {
+    const { mountEditor } = await editor;
+    if (!raw.isConnected) return; // the panel moved on while the file loaded
     doc = splitTool(f.content);
     file = mountEditor(raw, { value: f.content, readOnly: r.readonly, plain: true });
     desc.value = doc.desc ?? ''; desc.placeholder = doc.desc === null ? '' : 'Say when Claude should use it';
@@ -1376,8 +1382,13 @@ function openNewMemory(): void {
   // the editor overshoots and snaps back. preventScroll keeps the slide clean.
   ($('#n-title') as HTMLInputElement).focus({ preventScroll: true });
   $('#n-title').addEventListener('input', () => { $('#n-err').hidden = true; $('#n-title').removeAttribute('aria-invalid'); });
-  const ed = mountEditor($('#n-body'), { value: '', links: linksFor(() => memoryDirFor($<HTMLSelectElement>('#n-proj').value)), placeholder: 'The rule or fact. Then why it matters, and how to apply it.' });
-  tokenHint($('#n-tok'), $('#n-body'), () => ed.value);
+  let ed: Editor | null = null;
+  void editor.then(({ mountEditor }) => {
+    const host = document.getElementById('n-body');
+    if (!host) return;
+    ed = mountEditor(host, { value: '', links: linksFor(() => memoryDirFor($<HTMLSelectElement>('#n-proj').value)), placeholder: 'The rule or fact. Then why it matters, and how to apply it.' });
+    tokenHint($('#n-tok'), host, () => ed?.value ?? '');
+  });
   $('#ncreate').onclick = () => {
     const title = ($('#n-title') as HTMLInputElement).value.trim();
     const err = $('#n-err'), ti = $<HTMLInputElement>('#n-title');
@@ -1385,7 +1396,7 @@ function openNewMemory(): void {
     if (!title) { ti.focus(); return; }
     const dir = memoryDirFor($<HTMLSelectElement>('#n-proj').value);
     void run('memory-create', { dir, title, type: ($('#n-kind') as HTMLSelectElement).value,
-      description: ($('#n-desc') as HTMLInputElement).value, body: ed.value }).then((ok) => {
+      description: ($('#n-desc') as HTMLInputElement).value, body: ed?.value ?? '' }).then((ok) => {
       const m = ok && model.mems.find((x) => x.title === title && x.path.startsWith(dir + '/'));
       if (m) openMemory(m); else if (ok) closeDrawer(); // show what was made, where it was made
     });

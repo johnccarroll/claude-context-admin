@@ -9,6 +9,7 @@ import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/lang
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
 import { Annotation, Compartment, EditorSelection, EditorState, Prec, RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, keymap, placeholder, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view';
+import type { StateCommand } from '@codemirror/state';
 import { tags as t } from '@lezer/highlight';
 import { LINK, linkKey } from './model';
 
@@ -89,31 +90,29 @@ function editing(links?: Links): Extension {
 
 /** Wraps the selection in a mark (or inserts a pair to type into), as ⌘B does in a word processor;
  *  wrapped already, unwraps it. */
-const wrapWith = (open: string, close = open) => (v: EditorView): boolean => {
-  v.dispatch(v.state.changeByRange((r) => {
+export const wrapWith = (open: string, close = open): StateCommand => ({ state, dispatch }) => {
+  dispatch(state.update(state.changeByRange((r) => {
     const n = open.length, m = close.length;
-    if (v.state.sliceDoc(r.from - n, r.from) === open && v.state.sliceDoc(r.to, r.to + m) === close) {
+    if (state.sliceDoc(r.from - n, r.from) === open && state.sliceDoc(r.to, r.to + m) === close) {
       return { changes: [{ from: r.from - n, to: r.from }, { from: r.to, to: r.to + m }], range: EditorSelection.range(r.from - n, r.to - n) };
     }
     return { changes: [{ from: r.from, insert: open }, { from: r.to, insert: close }], range: EditorSelection.range(r.from + n, r.to + n) };
-  }));
-  v.focus();
+  })));
   return true;
 };
 /** `code`, or a ``` block when the selection spans lines. */
-const code = (v: EditorView): boolean => (v.state.sliceDoc(v.state.selection.main.from, v.state.selection.main.to).includes('\n') ? wrapWith('```\n', '\n```') : wrapWith('`'))(v);
+export const code: StateCommand = (t) => (t.state.sliceDoc(t.state.selection.main.from, t.state.selection.main.to).includes('\n') ? wrapWith('```\n', '\n```') : wrapWith('`'))(t);
 
 /** Adds, cycles or removes a line prefix on every selected line: `#` → `##` → `###` → none; `- ` on or off. */
-const prefixLines = (cycle: string[]) => (v: EditorView): boolean => {
-  const { doc } = v.state, r = v.state.selection.main;
+export const prefixLines = (cycle: string[]): StateCommand => ({ state, dispatch }) => {
+  const { doc } = state, r = state.selection.main;
   const changes = [];
   for (let n = doc.lineAt(r.from).number; n <= doc.lineAt(r.to).number; n++) {
     const l = doc.line(n), cur = cycle.find((p) => p && l.text.startsWith(p)) ?? '';
     const next = cycle[(cycle.indexOf(cur) + 1) % cycle.length];
     changes.push({ from: l.from, to: l.from + cur.length, insert: next });
   }
-  v.dispatch({ changes });
-  v.focus();
+  dispatch(state.update({ changes }));
   return true;
 };
 
@@ -121,7 +120,6 @@ const prefixLines = (cycle: string[]) => (v: EditorView): boolean => {
 const link = (v: EditorView): boolean => {
   const r = v.state.selection.main, t = v.state.sliceDoc(r.from, r.to);
   v.dispatch({ changes: { from: r.from, to: r.to, insert: `[[${t}` }, selection: { anchor: r.from + 2 + t.length } });
-  v.focus();
   startCompletion(v);
   return true;
 };
@@ -154,12 +152,12 @@ function toolbar(view: () => EditorView, links?: Links): HTMLElement {
       v.focus();
       return;
     }
-    const t = tools.find((x) => x[0] === k); if (t) t[3](v);
+    const t = tools.find((x) => x[0] === k); if (t) { t[3](v); v.focus(); }
   };
   return bar;
 }
 
-function linkCompletions(links: Links) {
+export function linkCompletions(links: Links) {
   return (ctx: CompletionContext): CompletionResult | null => {
     const m = ctx.matchBefore(/\[\[([^\]\n|#]*)$/);
     if (!m || inCode(ctx.state, ctx.pos)) return null;
@@ -195,6 +193,7 @@ class LinkChip extends WidgetType {
     const t = this.links.resolve(this.key), b = document.createElement('button');
     b.type = 'button';
     b.className = 'lchip' + (t ? '' : ' bad');
+    b.dataset.id = t?.id ?? '';
     if (t) {
       b.title = t.summary || `Open “${t.title}”`;
       b.innerHTML = `<span class="dot" style="background:${t.color}"></span>`;
