@@ -83,7 +83,7 @@ func TestPrivateFoldersAreNotProbed(t *testing.T) {
 	}{
 		{"/h/Downloads/recovery-codes.txt", true},
 		{"/h/Desktop", true},
-		{"/h/Library/Mobile Documents/iCloud~md~obsidian/x", true},
+		{"/h/Library/Mobile Documents/iCloud~com~example~notes/x", true},
 		{"/Volumes/Archive/x", true},
 		{"/h/dev/app/README.md", false},
 		{"/h/DesktopStuff/x", false},

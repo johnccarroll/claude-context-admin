@@ -12,6 +12,6 @@
 .linear.toml
 /openspec/
 
-# Test and screenshot runs write images here; real screenshots live in docs/screenshots
+# Test and recording runs write images here; the README's clips live in docs/clips
 /*.png
 __pycache__/

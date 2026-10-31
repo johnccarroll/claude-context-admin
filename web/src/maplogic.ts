@@ -43,12 +43,12 @@ export function layout(ns: LayoutNode[], ls: LayoutLink[], global: string, prev?
   const byId = new Map(sn.map((d) => [d.n.id, d]));
   const links = ls.filter((l) => byId.has(l.s) && byId.has(l.t)).map((l) => ({ source: byId.get(l.s)!, target: byId.get(l.t)!, cross: l.cross, ghost: l.ghost }));
   const sim = forceSimulation(sn)
-    .force('link', forceLink(links).distance((l) => (l.cross ? 150 : l.ghost ? 18 : 26)).strength((l) => (l.cross ? 0.012 : 0.32)))
-    .force('charge', forceManyBody().strength(-42).distanceMax(240))
+    .force('link', forceLink(links).distance(linkDistance).strength(linkStrength))
+    .force('charge', forceManyBody().strength(CHARGE).distanceMax(CHARGE_REACH))
     .force('x', forceX<SimNode>((d) => A.get(d.n.project)![0]).strength(0.1))
     .force('y', forceY<SimNode>((d) => A.get(d.n.project)![1]).strength(0.1))
     .force('collide', forceCollide<SimNode>((d) => d.n.r + 3))
-    .velocityDecay(0.38).stop();
+    .velocityDecay(DECAY).stop();
   // A model that only changed a little needs fewer ticks to settle from where it was.
   const ticks = prev && sn.every((d) => prev.has(d.n.id)) ? 120 : 360;
   for (let i = 0; i < ticks; i++) sim.tick();
@@ -150,3 +150,8 @@ export function nextInDirection(from: NavPoint, all: NavPoint[], dir: Pt): strin
 }
 
 export const ARROWS: Record<string, Pt> = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+/** The map's physics, shared by the static layout and the live one while dragging. */
+export const CHARGE = -42, CHARGE_REACH = 240, DECAY = 0.38;
+export const linkDistance = (l: { cross: boolean; ghost?: boolean }): number => (l.cross ? 150 : l.ghost ? 18 : 26);
+export const linkStrength = (l: { cross: boolean }): number => (l.cross ? 0.012 : 0.32);

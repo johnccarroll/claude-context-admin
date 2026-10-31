@@ -6,7 +6,7 @@ import { select } from 'd3-selection';
 import 'd3-transition';
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from 'd3-zoom';
 import { chipSize, drawChip, rgba, tokens, type Hooks, type MapView, type MLink, type MNode, type Scene, type Tokens } from './map';
-import { ARROWS, hull, nextInDirection, placeLabels, type Box, type Dot, type LabelItem, type Pt } from './maplogic';
+import { ARROWS, CHARGE, CHARGE_REACH, DECAY, hull, linkDistance, linkStrength, nextInDirection, placeLabels, type Box, type Dot, type LabelItem, type Pt } from './maplogic';
 import { cssVar } from './ui';
 
 interface D extends SimulationNodeDatum {
@@ -149,12 +149,12 @@ export function create(host: HTMLElement, hooks: Hooks): MapView {
   function live(): Simulation<D, undefined> {
     if (sim) return sim;
     sim = forceSimulation(nodes)
-      .force('link', forceLink<D, L>(links.filter((l) => !l.l.twin)).distance((l) => (l.l.cross ? 150 : l.l.ghost ? 18 : 26)).strength((l) => (l.l.cross ? 0.012 : 0.32)))
-      .force('charge', forceManyBody().strength(-42).distanceMax(240))
+      .force('link', forceLink<D, L>(links.filter((l) => !l.l.twin)).distance((l) => linkDistance(l.l)).strength((l) => linkStrength(l.l)))
+      .force('charge', forceManyBody().strength(CHARGE).distanceMax(CHARGE_REACH))
       .force('x', forceX<D>((d) => d.hx).strength(0.08))
       .force('y', forceY<D>((d) => d.hy).strength(0.08))
       .force('collide', forceCollide<D>((d) => d.n.r + 3))
-      .velocityDecay(0.38)
+      .velocityDecay(DECAY)
       .on('tick', () => { dirty = true; wake(); });
     return sim;
   }
