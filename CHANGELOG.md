@@ -9,6 +9,8 @@ its GitHub release notes, where line breaks show, so each entry is one line.
 - Click a link in a memory to change or remove it, or open it; the `[[` list opens from the Link button too. A Preview | Source switch on the bar shows every mark all the time, and is remembered.
 - The details show their token cost as you type, and saving keeps your place in the panel.
 - The browser tab has an icon; the Connections box starts closed for a memory with no links.
+- The 3D map works in light mode: a pale ground, the usual colours, dark names and no glow. A name that loses its place leaves faster, so two rarely overlap.
+- In read-only mode the editors are read-only too, instead of taking edits and refusing the save. On a phone the toast no longer covers the panel's Save button.
 - Removed stale screenshots and an unlinked draft doc; the map's physics settings live in one place.
 
 ## 0.2.0 (2026-10-22)

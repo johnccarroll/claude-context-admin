@@ -1079,7 +1079,7 @@ function openMemory(m: Mem, tab: 'edit' | 'history' = 'edit', at = ''): void {
     if (ui.open?.id !== m.id) return;
     $('#f-body').replaceChildren();
     // the server splits the header, exactly as saving puts it back
-    ed = mountEditor($('#f-body'), { value: f.body.replace(/^\n+/, ''), links: linksFor(() => dirOf(m.path), m), placeholder: 'Add details. Type [[ to link another memory.' });
+    ed = mountEditor($('#f-body'), { value: f.body.replace(/^\n+/, ''), links: linksFor(() => dirOf(m.path), m), placeholder: 'Add details. Type [[ to link another memory.', readOnly: model.state.readOnly });
     tokenHint($('#f-tok'), $('#f-body'), () => ed?.value ?? '');
     restoreTop();
     $<HTMLButtonElement>('#dsave').disabled = false;
@@ -1188,7 +1188,7 @@ function openFile(e: Entry, tab: 'edit' | 'history' = 'edit', at = ''): void {
     const { mountEditor } = await editor;
     if (ui.file !== path) return;
     $('#i-body').replaceChildren();
-    ed = mountEditor($('#i-body'), { value: f.content, readOnly: plugin });
+    ed = mountEditor($('#i-body'), { value: f.content, readOnly: plugin || model.state.readOnly });
     restoreTop();
     if (save) save.disabled = false;
   }).catch(() => { if (ui.file === path) $('#i-body').innerHTML = '<span class="err">Couldn’t read this file. Close it and try again.</span>'; });
@@ -1322,11 +1322,11 @@ function openTool(r: Row): void {
     const { mountEditor } = await editor;
     if (!raw.isConnected) return; // the panel moved on while the file loaded
     doc = splitTool(f.content);
-    file = mountEditor(raw, { value: f.content, readOnly: r.readonly, plain: true });
+    file = mountEditor(raw, { value: f.content, readOnly: r.readonly || model.state.readOnly, plain: true });
     desc.value = doc.desc ?? ''; desc.placeholder = doc.desc === null ? '' : 'Say when Claude should use it';
     if (doc.desc === null) $('#t-deschint').textContent = doc.di === -2 ? 'This file has no description.' : 'Written in a form this editor can’t change safely: use Edit as file.';
     insHost.replaceChildren();
-    ins = mountEditor(insHost, { value: doc.body, readOnly: r.readonly });
+    ins = mountEditor(insHost, { value: doc.body, readOnly: r.readonly || model.state.readOnly });
     if (doc.others.length) { $('#t-other').hidden = false; $('#t-otherv').textContent = doc.others.join('\n'); }
     desc.readOnly = r.readonly || doc.desc === null;
     const rawBtn = $<HTMLButtonElement>('#t-raw');
