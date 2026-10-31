@@ -631,6 +631,8 @@ body.resizing{cursor:col-resize;user-select:none}
 .mdbar button:active{transform:scale(.94);background:var(--sunk);color:var(--fg)}
 .mdbar button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .mdbar button .mono{font-family:var(--f-mono);font-size:12px}
+.mdbar .src{margin-left:auto;font-size:12px}
+.mdbar .src[aria-pressed=true]{background:var(--sunk);color:var(--fg)}
 @media (hover:hover) and (pointer:fine){.mdbar button:hover{background:var(--sunk);color:var(--fg)}}
 @media (max-width:720px){.mdbar button{height:36px;min-width:38px}}
 .mdhost .cm-editor{font:inherit;color:var(--fg);background:none;outline:0}

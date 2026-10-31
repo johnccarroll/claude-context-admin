@@ -7,7 +7,7 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown, markdownKeymap, markdownLanguage } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
-import { Annotation, EditorSelection, EditorState, Prec, RangeSetBuilder, type Extension } from '@codemirror/state';
+import { Annotation, Compartment, EditorSelection, EditorState, Prec, RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, keymap, placeholder, ViewPlugin, type ViewUpdate, WidgetType } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { LINK, linkKey } from './model';
@@ -35,10 +35,16 @@ export interface Editor {
 
 const programmatic = Annotation.define<boolean>();
 
+/** Source mode shows every mark, always; the default formats the text and shows marks only on the
+ *  cursor's line. The choice is remembered. */
+const SOURCE = 'cca-md-source';
+const sourceMode = (): boolean => { try { return localStorage.getItem(SOURCE) === '1'; } catch { return false; } };
+const preview = new Compartment();
+
 /** Mounts an editor in host. Typing fires a bubbling `input` event on host, like a text box.
  *  plain shows the text as written (a whole file with its header), in a monospace font. */
 export function mountEditor(host: HTMLElement, opts: { value: string; links?: Links; placeholder?: string; readOnly?: boolean; plain?: boolean }): Editor {
-  if (!opts.readOnly && !opts.plain) host.append(toolbar(() => view, !!opts.links));
+  if (!opts.readOnly && !opts.plain) host.append(toolbar(() => view, opts.links));
   host.classList.toggle('plain', !!opts.plain);
   const view = new EditorView({
     parent: host,
@@ -46,7 +52,7 @@ export function mountEditor(host: HTMLElement, opts: { value: string; links?: Li
       doc: opts.value,
       extensions: [
         opts.readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : editing(opts.links),
-        opts.plain ? [] : [markdown({ base: markdownLanguage, addKeymap: false }), syntaxHighlighting(style), livePreview(opts.links)], // plain: the file as it is, for its header
+        opts.plain ? [] : [markdown({ base: markdownLanguage, addKeymap: false }), syntaxHighlighting(style), preview.of(sourceMode() && !opts.readOnly ? [] : livePreview(opts.links))], // plain: the file as it is, for its header
         EditorView.lineWrapping,
         opts.placeholder ? placeholder(opts.placeholder) : [],
         EditorView.updateListener.of((u) => {
@@ -125,7 +131,7 @@ const I = {
   list: '<svg viewBox="0 0 16 16"><path d="M6 4h7M6 8h7M6 12h7M3 4h.01M3 8h.01M3 12h.01"/></svg>',
 };
 /** The formatting bar above the text: each button keeps the cursor where it is. */
-function toolbar(view: () => EditorView, links: boolean): HTMLElement {
+function toolbar(view: () => EditorView, links?: Links): HTMLElement {
   const bar = document.createElement('div');
   bar.className = 'mdbar'; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Formatting');
   const tools: [string, string, string, (v: EditorView) => boolean][] = [
@@ -135,9 +141,21 @@ function toolbar(view: () => EditorView, links: boolean): HTMLElement {
     ['heading', '<span class="mono">H</span>', 'Heading: tap again for the next size', prefixLines(['', '# ', '## ', '### '])],
     ['list', I.list, 'List', prefixLines(['', '- '])],
   ];
-  bar.innerHTML = tools.map(([k, html, title]) => `<button type="button" data-t="${k}" title="${title}" aria-label="${title.split(' (')[0].split(':')[0]}">${html}</button>`).join('');
+  bar.innerHTML = tools.map(([k, html, title]) => `<button type="button" data-t="${k}" title="${title}" aria-label="${title.split(' (')[0].split(':')[0]}">${html}</button>`).join('') +
+    `<button type="button" class="src" data-t="source" title="Source: show every Markdown mark, always" aria-pressed="${sourceMode()}">Source</button>`;
   bar.onmousedown = (e) => e.preventDefault(); // the text keeps focus and its selection
-  bar.onclick = (e) => { const k = (e.target as HTMLElement).closest<HTMLElement>('[data-t]')?.dataset.t; const t = tools.find((x) => x[0] === k); if (t) t[3](view()); };
+  bar.onclick = (e) => {
+    const k = (e.target as HTMLElement).closest<HTMLElement>('[data-t]')?.dataset.t, v = view();
+    if (k === 'source') {
+      const on = !sourceMode();
+      try { localStorage.setItem(SOURCE, on ? '1' : '0'); } catch { /* only a convenience */ }
+      bar.querySelector('.src')!.setAttribute('aria-pressed', String(on));
+      v.dispatch({ effects: preview.reconfigure(on ? [] : livePreview(links)) });
+      v.focus();
+      return;
+    }
+    const t = tools.find((x) => x[0] === k); if (t) t[3](v);
+  };
   return bar;
 }
 

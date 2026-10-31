@@ -1009,8 +1009,8 @@ function linksFor(dir: () => string, self?: Mem): Links {
       const open = (): void => { const m = t && model.byId.get(t.id); if (m) openMemory(m); };
       if (!edit) { open(); return; } // read-only text: a link just opens
       menu(at, [
-        ...(t ? [[`Open “${t.title}”`, open] as MenuItem] : self ? stubItems(self, key) : []),
         ['Change link…', edit.change], ['Remove link', edit.remove],
+        ...(t ? [null, [`Open “${t.title}”`, open] as MenuItem] : self ? [null, ...stubItems(self, key)] : []),
       ]);
     },
   };
@@ -1024,7 +1024,6 @@ function stubItems(m: Mem, key: string): MenuItem[] {
   return [
     ...near.map(({ c }): MenuItem => [`Link to “${c.title}” everywhere`, saved(() => void run('relink', { from: key, to: c.stem, paths: [m.path] }))]),
     [`Create “${human(key)}” as a new note`, saved(() => void run('create-stub', { name: key, dir: dirOf(m.path) }))],
-    null,
   ];
 }
 
