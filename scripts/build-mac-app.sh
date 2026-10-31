@@ -38,7 +38,7 @@ lipo -create -output "$APP/Contents/MacOS/Claude Context Admin" "$OUT/app-arm64"
 rm -f "$OUT"/cca-* "$OUT"/app-*
 
 sed "s/__VERSION__/$VERSION/g" "$ROOT/macos/Info.plist" > "$APP/Contents/Info.plist"
-cp "$ROOT/macos/AppIcon.icns" "$APP/Contents/Resources/"
+cp "$ROOT/macos/AppIcon.icns" "$ROOT"/macos/menubar*.png "$APP/Contents/Resources/"
 cp "$ROOT/LICENSE" "$APP/Contents/Resources/"
 
 if [ -n "${CCA_SIGN_ID:-}" ] && [ -n "${CCA_NOTARY:-}" ]; then
