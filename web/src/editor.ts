@@ -142,14 +142,14 @@ function toolbar(view: () => EditorView, links?: Links): HTMLElement {
     ['list', I.list, 'List', prefixLines(['', '- '])],
   ];
   bar.innerHTML = tools.map(([k, html, title]) => `<button type="button" data-t="${k}" title="${title}" aria-label="${title.split(' (')[0].split(':')[0]}">${html}</button>`).join('') +
-    `<button type="button" class="src" data-t="source" title="Source: show every Markdown mark, always" aria-pressed="${sourceMode()}">Source</button>`;
+    `<span class="vmode" role="radiogroup" aria-label="View"><button type="button" role="radio" data-t="preview" aria-checked="${!sourceMode()}" title="Preview: the text reads as formatted; marks show on the line you're on">Preview</button><button type="button" role="radio" data-t="source" aria-checked="${sourceMode()}" title="Source: every Markdown mark, always">Source</button></span>`;
   bar.onmousedown = (e) => e.preventDefault(); // the text keeps focus and its selection
   bar.onclick = (e) => {
     const k = (e.target as HTMLElement).closest<HTMLElement>('[data-t]')?.dataset.t, v = view();
-    if (k === 'source') {
-      const on = !sourceMode();
+    if (k === 'source' || k === 'preview') {
+      const on = k === 'source';
       try { localStorage.setItem(SOURCE, on ? '1' : '0'); } catch { /* only a convenience */ }
-      bar.querySelector('.src')!.setAttribute('aria-pressed', String(on));
+      bar.querySelectorAll('[role=radio]').forEach((r) => r.setAttribute('aria-checked', String((r as HTMLElement).dataset.t === k)));
       v.dispatch({ effects: preview.reconfigure(on ? [] : livePreview(links)) });
       v.focus();
       return;

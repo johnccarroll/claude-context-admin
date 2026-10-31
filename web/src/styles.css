@@ -631,8 +631,9 @@ body.resizing{cursor:col-resize;user-select:none}
 .mdbar button:active{transform:scale(.94);background:var(--sunk);color:var(--fg)}
 .mdbar button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .mdbar button .mono{font-family:var(--f-mono);font-size:12px}
-.mdbar .src{margin-left:auto;font-size:12px}
-.mdbar .src[aria-pressed=true]{background:var(--sunk);color:var(--fg)}
+.mdbar .vmode{margin-left:auto;display:inline-flex;padding:2px;border-radius:7px;background:var(--sunk);border:1px solid var(--line)}
+.mdbar .vmode button{height:22px;min-width:0;padding:0 8px;font-size:12px;border-radius:5px}
+.mdbar .vmode button[aria-checked=true]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 @media (hover:hover) and (pointer:fine){.mdbar button:hover{background:var(--sunk);color:var(--fg)}}
 @media (max-width:720px){.mdbar button{height:36px;min-width:38px}}
 .mdhost .cm-editor{font:inherit;color:var(--fg);background:none;outline:0}

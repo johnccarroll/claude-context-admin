@@ -6,7 +6,7 @@ its GitHub release notes, where line breaks show, so each entry is one line.
 ## Unreleased
 
 - The Markdown editor is now CodeMirror, with live preview (marks show only on the cursor's line), a formatting bar (Link, bold, italic, code, heading, list), list continuation on Enter, undo, find (⌘F) and bracket closing. It replaces a plain text box and a hand-written renderer, in every place text is edited: memories, instructions, skills and agents.
-- Click a link in a memory to change or remove it, or open it; the `[[` list opens from the Link button too. A Source switch on the bar shows every mark all the time, and is remembered.
+- Click a link in a memory to change or remove it, or open it; the `[[` list opens from the Link button too. A Preview | Source switch on the bar shows every mark all the time, and is remembered.
 - The details show their token cost as you type, and saving keeps your place in the panel.
 - The browser tab has an icon; the Connections box starts closed for a memory with no links.
 - Removed stale screenshots and an unlinked draft doc; the map's physics settings live in one place.
