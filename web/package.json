@@ -24,14 +24,14 @@
     "d3-selection": "^3.0.0",
     "d3-transition": "^3.0.1",
     "d3-zoom": "^3.0.0",
-    "three": "0.186.1"
+    "three": "0.187.0"
   },
   "devDependencies": {
     "@types/d3-force": "^3.0.10",
     "@types/d3-selection": "^3.0.12",
     "@types/d3-transition": "^3.0.9",
     "@types/d3-zoom": "^3.0.9",
-    "@types/three": "0.186.0",
+    "@types/three": "0.187.0",
     "typescript": "^7.0.2"
   }
 }
